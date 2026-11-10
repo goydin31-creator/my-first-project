@@ -16,7 +16,7 @@ const JavaScriptObfuscator = require('javascript-obfuscator');
 
 const ROOT = __dirname;
 const SRC = path.join(ROOT, 'src');
-const FILES = ['data.js', 'app.js'];
+const FILES = ['data.js', 'app.js', 'promo.js'];
 
 const OPTIONS = {
   compact: true,

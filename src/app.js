@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION = '1.5';
+const APP_VERSION = '1.6';
 /* ===================== Türkçe Quest ===================== */
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -31,6 +31,7 @@ const DEFAULT_STATE = {
   achievements: [], sound: true, onboarded: false,
   inProgress: {},           // lessonId -> сохранённое место в уроке
   uid: null, refBy: null, refClaimed: false, referrals: [],  // реферальная программа
+  premium: false, unlockedPremium: [], redeemedCodes: [],      // премиум и промокоды
 };
 let S = load();
 if (!S.uid) { S.uid = Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3); save(); }
@@ -278,7 +279,8 @@ $('#streakPill').addEventListener('click', () => modal(`<h2>🔥 Серия: ${S
   <p>🧊 Заморозок в запасе: <b>${S.freezes}</b></p>
   <div class="modal-actions"><button class="btn block" onclick="closeModal()">Понятно</button></div>`));
 
-function lessonById(id) { return CORE_LESSONS.find((l) => l.id === id) || BONUS_LESSONS.find((l) => l.id === id); }
+function lessonById(id) { return CORE_LESSONS.find((l) => l.id === id) || BONUS_LESSONS.find((l) => l.id === id) || PREMIUM_LESSONS.find((l) => l.id === id); }
+function premiumUnlocked(id) { return !!S.premium || S.unlockedPremium.includes(id); }
 function isUnlocked(i) { return i === 0 || !!S.completed[CORE_LESSONS[i - 1].id]; }
 function starsStr(n) { return '★'.repeat(n) + '☆'.repeat(3 - n); }
 
@@ -302,6 +304,13 @@ function renderMap() {
       ${owned ? (progressLabel(l.id) ? `<div class="owned">▶ Продолжить ${progressLabel(l.id)}</div>` : done ? `<div style="color:var(--gold)">${starsStr(done.stars)}</div>` : '<div class="owned">Открыто ▶</div>') : `<div class="price">🔒 ${l.price} 🪙</div>`}
     </div>`;
   }).join('');
+  const premium = PREMIUM_LESSONS.map((l) => {
+    const open = premiumUnlocked(l.id), done = S.completed[l.id];
+    return `<div class="bonus ${open ? (done ? 'done' : '') : 'locked'}" data-prem="${l.id}" style="${open ? '' : 'border-color:#7C5CBF'}">
+      <div class="em">${l.emoji}</div><div class="t">${esc(l.title)}</div><div class="s">${esc(l.subtitle)}</div>
+      ${open ? (progressLabel(l.id) ? `<div class="owned">▶ Продолжить ${progressLabel(l.id)}</div>` : done ? `<div style="color:var(--gold)">${starsStr(done.stars)}</div>` : '<div class="owned">Открыто ▶</div>') : `<div class="price" style="color:#4B2E83">💎 ${l.rub}₽ / промокод</div>`}
+    </div>`;
+  }).join('');
   const allDone = nextIdx === -1;
   $('#screen').innerHTML = `
     <div class="hero">
@@ -316,7 +325,10 @@ function renderMap() {
     <div class="path">${nodes}</div>
     <h2 class="section">Бонусные паки</h2>
     <p class="sub">Открываются за монеты в магазине</p>
-    <div class="bonus-grid">${bonus}</div>`;
+    <div class="bonus-grid">${bonus}</div>
+    <h2 class="section">💎 Премиум-уроки</h2>
+    <p class="sub">Открываются по промокоду</p>
+    <div class="bonus-grid">${premium}</div>`;
   const cb = $('#contBtn'); if (cb) cb.onclick = () => startLesson(CORE_LESSONS[nextIdx].id);
   document.querySelectorAll('.node-btn').forEach((b) => b.onclick = () => {
     const i = +b.dataset.idx;
@@ -327,6 +339,25 @@ function renderMap() {
     const l = lessonById(b.dataset.bonus);
     if (S.owned.includes(l.id)) lessonPreview(l); else buyDialog(l, 'pack');
   });
+  document.querySelectorAll('[data-prem]').forEach((b) => b.onclick = () => {
+    const l = lessonById(b.dataset.prem);
+    if (premiumUnlocked(l.id)) lessonPreview(l); else premiumPreview(l);
+  });
+}
+function premiumPreview(l) {
+  modal(`<div style="text-align:center;font-size:60px">${l.emoji}</div>
+    <h2 style="text-align:center">${esc(l.title)} 💎</h2>
+    <p style="text-align:center;color:var(--muted);margin-top:-6px">${esc(l.subtitle)} · ${l.items.length} фраз</p>
+    <div class="card" style="box-shadow:none;border:2px solid var(--line)">
+      ${l.items.slice(0, 3).map((it) => `<div style="padding:4px 0"><b style="color:var(--red)">${esc(it.tr)}</b> — ${esc(it.ru)}</div>`).join('')}
+      <div style="color:var(--muted);padding-top:4px">…и ещё ${l.items.length - 3} — откроются после активации</div>
+    </div>
+    <p style="text-align:center;font-weight:900;color:#4B2E83">Премиум-урок · ${l.rub}₽</p>
+    <div class="modal-actions">
+      <button class="btn block" id="havePromo">🎟️ У меня есть промокод</button>
+      <button class="btn ghost block" onclick="closeModal()">Позже</button>
+    </div>`);
+  $('#havePromo').onclick = () => { closeModal(); promoDialog(); };
 }
 
 function lessonPreview(l) {
@@ -372,12 +403,21 @@ function renderShop() {
       <div class="grow"><div class="t">${esc(k.title)}</div><div class="s">Карточка знаний</div></div>
       ${owned ? `<button class="btn turq small-btn" data-read="${k.id}">Читать</button>` : `<button class="btn gold small-btn" data-buy="${k.id}" data-kind="card">${k.price} 🪙</button>`}</div>`;
   };
+  const premRow = (l) => {
+    const open = premiumUnlocked(l.id);
+    return `<div class="card row"><div class="em">${l.emoji}</div>
+      <div class="grow"><div class="t">${esc(l.title)} ${open ? '💎' : ''}</div><div class="s">${esc(l.subtitle)} · ${l.items.length} фраз</div></div>
+      ${open ? `<button class="btn turq small-btn" data-prem="${l.id}">Открыть ▶</button>` : `<button class="btn small-btn" data-promo="1" style="background:#4B2E83;box-shadow:0 4px 0 #2B1D55;color:#fff">🎟️ Код</button>`}</div>`;
+  };
   const boostRow = (b) => `<div class="card row"><div class="em">${b.emoji}</div>
       <div class="grow"><div class="t">${esc(b.title)}</div><div class="s">${esc(b.desc)}${b.id === 'freeze' ? ` · есть: ${S.freezes}` : (S.doubleNext ? ' · уже активен' : '')}</div></div>
       <button class="btn gold small-btn" data-buy="${b.id}" data-kind="boost" ${b.id === 'double' && S.doubleNext ? 'disabled' : ''}>${b.price} 🪙</button></div>`;
   $('#screen').innerHTML = `
     <h2 class="section">Магазин знаний</h2>
     <p class="sub">У тебя ${S.coins} 🪙 — зарабатывай их на уроках и вкладывай в новые знания</p>
+    ${premiumCard()}
+    <h2 class="section" style="font-size:18px">💎 Премиум-уроки</h2>
+    <p class="sub">Открываются по промокоду</p>${PREMIUM_LESSONS.map(premRow).join('')}
     <h2 class="section" style="font-size:18px">📦 Бонусные уроки</h2>${BONUS_LESSONS.map(packRow).join('')}
     <h2 class="section" style="font-size:18px">📚 Грамматика и культура</h2>${KNOWLEDGE.map(cardRow).join('')}
     <h2 class="section" style="font-size:18px">⚡ Бустеры</h2>${BOOSTERS.map(boostRow).join('')}`;
@@ -390,6 +430,8 @@ function bindShopButtons() {
     buyDialog(item, kind);
   });
   document.querySelectorAll('[data-read]').forEach((b) => b.onclick = () => openKnowledge(b.dataset.read));
+  document.querySelectorAll('[data-prem]').forEach((b) => b.onclick = () => lessonPreview(lessonById(b.dataset.prem)));
+  document.querySelectorAll('[data-promo]').forEach((b) => b.onclick = () => promoDialog());
 }
 function buyDialog(item, kind) {
   const can = S.coins >= item.price;
@@ -419,7 +461,7 @@ function buyDialog(item, kind) {
 function renderLibrary() {
   const owned = KNOWLEDGE.filter((k) => S.owned.includes(k.id));
   const locked = KNOWLEDGE.filter((k) => !S.owned.includes(k.id));
-  const words = [...CORE_LESSONS, ...BONUS_LESSONS].filter((l) => S.completed[l.id]).flatMap((l) => l.items);
+  const words = [...CORE_LESSONS, ...BONUS_LESSONS, ...PREMIUM_LESSONS].filter((l) => S.completed[l.id]).flatMap((l) => l.items);
   $('#screen').innerHTML = `
     <h2 class="section">Мои знания</h2>
     <p class="sub">Открытые карточки и выученный словарь</p>
@@ -446,7 +488,7 @@ function openKnowledge(id) {
 /* ---------- Профиль ---------- */
 function renderProfile() {
   const li = levelInfo(S.xp);
-  const total = CORE_LESSONS.length + BONUS_LESSONS.length;
+  const total = CORE_LESSONS.length + BONUS_LESSONS.length + PREMIUM_LESSONS.length;
   const done = Object.keys(S.completed).length;
   $('#screen').innerHTML = `
     <div class="card" style="text-align:center">
@@ -468,6 +510,7 @@ function renderProfile() {
     ${inviteCard()}
     <div class="card row"><div class="grow"><div class="t">Звуки и вибрация</div></div><button class="btn ${S.sound ? 'turq' : 'ghost'} small-btn" id="sndBtn">${S.sound ? 'Вкл' : 'Выкл'}</button></div>
     <div class="card row"><div class="grow"><div class="t">Проверить микрофон</div><div class="s">Скажи «Merhaba»</div></div><button class="btn turq small-btn" id="micTest">🎙️ Тест</button></div>
+    <div class="card row"><div class="grow"><div class="t">💎 Ввести промокод</div><div class="s">${S.premium ? 'Премиум активен' : 'Открыть премиум-уроки'}</div></div><button class="btn small-btn" style="background:#4B2E83;box-shadow:0 4px 0 #2B1D55;color:#fff" onclick="promoDialog()">Ввести</button></div>
     <div class="card row"><div class="grow"><div class="t">Как установить на телефон</div></div><button class="btn ghost small-btn" id="howInstall">?</button></div>
     <div class="card row"><div class="grow"><div class="t" style="color:var(--wrong)">Сбросить прогресс</div></div><button class="btn red small-btn" id="resetBtn">Сброс</button></div>
     <p class="sub" style="text-align:center;margin-top:20px">Türkçe Quest v${APP_VERSION} · by goidin.ai</p>`;
@@ -884,9 +927,10 @@ function showReferralConfirm() {
 }
 function handleReferralParams() {
   const q = new URLSearchParams(location.search);
-  const ref = q.get('ref'), claim = q.get('claim');
-  if (!ref && !claim) return;
+  const ref = q.get('ref'), claim = q.get('claim'), promo = q.get('promo');
+  if (!ref && !claim && !promo) return;
   history.replaceState(null, '', location.pathname); // убираем параметры из адреса
+  if (promo) { setTimeout(() => { if (!parsePromo(promo)) { toast('❌ Промокод в ссылке не распознан'); } else if (S.redeemedCodes.includes(parsePromo(promo).code)) { toast('Этот промокод уже активирован ✅'); } else { redeemCode(promo); } }, S.onboarded ? 500 : 6500); }
   if (ref && /^[a-z0-9]{4,20}$/.test(ref)) {
     if (ref === S.uid) { setTimeout(() => toast('Это твоя же ссылка 😄 Отправь её другу!'), 500); }
     else if (!S.refBy && S.stats.lessons === 0) {
@@ -913,6 +957,69 @@ function handleReferralParams() {
       if (tab === 'map') renderMap();
     }, S.onboarded ? 400 : 300);
   }
+}
+
+/* ---------- Премиум-паки и промокоды ---------- */
+// Работает ОФЛАЙН, без сервера: промокод = payload + подпись. Приложение проверяет
+// подпись локально. Автор продаёт коды через свои каналы и выдаёт покупателю.
+// target: 'ALL' (весь премиум) или id пакета. Один код активируется один раз на телефоне.
+const PROMO_SALT = 'turkce-quest-promo-2026-goidin-ai';
+const PROMO_TARGETS = ['ALL', 'realty', 'business', 'emergency'];
+const PROMO_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 символа, без путающих 0/O/1/I/L
+function fnv32(str) { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; }
+function promoSig(payload) { const n = fnv32(payload + '|' + PROMO_SALT); let r = ''; for (let i = 0; i < 4; i++) r += PROMO_ALPHABET[(n >>> (i * 5)) & 31]; return r; }
+function makePromoCode(target, nonce) { const tc = PROMO_ALPHABET[PROMO_TARGETS.indexOf(target)]; const payload = tc + nonce; const raw = payload + promoSig(payload); return 'TQ-' + raw.slice(0, 4) + '-' + raw.slice(4); }
+function parsePromo(code) {
+  let raw = String(code || '').toUpperCase().replace(new RegExp('[^' + PROMO_ALPHABET + ']', 'g'), '');
+  if (raw.length === 10 && raw.slice(0, 2) === 'TQ') raw = raw.slice(2);
+  if (raw.length !== 8) return null;
+  const payload = raw.slice(0, 4), sig = raw.slice(4);
+  if (promoSig(payload) !== sig) return null;
+  const ti = PROMO_ALPHABET.indexOf(payload[0]);
+  if (ti < 0 || ti >= PROMO_TARGETS.length) return null;
+  return { target: PROMO_TARGETS[ti], code: raw };
+}
+function redeemCode(code) {
+  const p = parsePromo(code);
+  if (!p) { sfx('bad'); toast('❌ Неверный промокод. Проверь код и попробуй снова', 3500); return false; }
+  if (S.redeemedCodes.includes(p.code)) { toast('Этот код уже активирован на этом телефоне ✅', 3500); return false; }
+  S.redeemedCodes.push(p.code);
+  let what;
+  if (p.target === 'ALL') { S.premium = true; what = 'Премиум — все уроки открыты!'; }
+  else { if (!S.unlockedPremium.includes(p.target)) S.unlockedPremium.push(p.target); const l = lessonById(p.target); what = l ? l.title : 'премиум-урок'; }
+  S._boughtFlag = true; save(); sfx('level'); confetti(160);
+  modal(`<div style="text-align:center;font-size:64px">💎</div>
+    <h2 style="text-align:center">Промокод активирован!</h2>
+    <p style="text-align:center;font-size:18px;font-weight:800;color:var(--green-d)">${esc(what)}</p>
+    <p style="text-align:center;color:var(--muted)">Открой раздел «Путь» или «Магазин» — премиум-уроки уже доступны.</p>
+    <div class="modal-actions"><button class="btn block" onclick="closeModal();showTab('map')">Отлично!</button></div>`);
+  checkAchievements();
+  return true;
+}
+function promoDialog(prefill) {
+  modal(`<div style="text-align:center;font-size:56px">🎟️</div>
+    <h2 style="text-align:center">Промокод</h2>
+    <p style="text-align:center;color:var(--muted)">Введи код, который получил при покупке премиума. Формат: <b>TQ-XXXX-XXXX</b></p>
+    <input id="promoInput" inputmode="latin" autocapitalize="characters" placeholder="TQ-XXXX-XXXX" value="${esc(prefill || '')}"
+      style="width:100%;padding:16px;font-size:20px;font-weight:900;text-align:center;letter-spacing:2px;border:2px solid var(--line);border-radius:16px;text-transform:uppercase;margin:6px 0 4px">
+    <div id="promoMsg" class="sub" style="text-align:center;min-height:20px"></div>
+    <div class="modal-actions">
+      <button class="btn block" id="promoGo">Активировать</button>
+      <button class="btn ghost block" onclick="closeModal()">Закрыть</button>
+    </div>`);
+  const inp = $('#promoInput');
+  setTimeout(() => inp && inp.focus(), 100);
+  $('#promoGo').onclick = () => { if (redeemCode(inp.value)) return; };
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#promoGo').click(); });
+}
+// Карточка-призыв купить премиум (для магазина)
+function premiumCard() {
+  const have = S.premium;
+  return `<div class="card" style="background:linear-gradient(135deg,#2B1D55,#4B2E83);border:2px solid #7C5CBF;color:#fff">
+    <div class="row"><div class="em" style="background:rgba(255,255,255,.12)">💎</div>
+      <div class="grow"><div class="t" style="color:#fff">${have ? 'Премиум активен' : 'Премиум-доступ'}</div>
+      <div class="s" style="color:#D6C8F5">${have ? 'Все премиум-уроки открыты. Teşekkürler! 🙏' : 'Профессиональные уроки: недвижимость, бизнес, экстренные ситуации'}</div></div></div>
+    ${have ? '' : `<button class="btn block" style="margin-top:12px;background:#FFB800;box-shadow:0 4px 0 #D99400;color:#3A2600" onclick="promoDialog()">🎟️ У меня есть промокод</button>`}</div>`;
 }
 
 /* ---------- Старт ---------- */
