@@ -28,8 +28,10 @@ const DEFAULT_STATE = {
   streak: 0, lastDay: null, freezes: 0, doubleNext: false,
   stats: { lessons: 0, perfectSpeech: 0, speech: 0, tasks: 0, mistakes: 0 },
   achievements: [], sound: true, onboarded: false,
+  uid: null, refBy: null, refClaimed: false, referrals: [],  // реферальная программа
 };
 let S = load();
+if (!S.uid) { S.uid = Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3); save(); }
 function load() {
   try { const raw = localStorage.getItem(STORE_KEY); if (raw) return deepMerge(structuredClone(DEFAULT_STATE), JSON.parse(raw)); } catch (e) {}
   return structuredClone(DEFAULT_STATE);
@@ -305,7 +307,9 @@ function renderMap() {
       <p>${allDone ? 'Все основы пройдены! Открывай бонусные паки в магазине.' : 'Отвечай, произноси вслух — и только чистое произношение открывает следующее задание.'}</p>
       ${allDone ? '<button class="btn" onclick="showTab(\'shop\')">В магазин</button>' : `<button class="btn" id="contBtn">▶ ${S.stats.lessons ? 'Продолжить' : 'Начать'}</button>`}
     </div>
-    ${SR ? '' : '<div class="warn">⚠️ Этот браузер не умеет распознавать речь. Открой приложение в <b>Google Chrome</b> на Android — без этого задания не засчитаются.</div>'}
+    ${SR ? '' : `<div class="warn">⚠️ Этот браузер не умеет распознавать речь. Открой приложение в <b>Google Chrome</b> на Android — без этого задания не засчитаются.${isAndroid() ? '<div style="margin-top:10px"><button class="btn small-btn" onclick="openInChrome()">Открыть в Chrome</button></div>' : ''}</div>`}
+    ${inviteCard()}
+    ${S.refBy && S.stats.lessons > 0 && !S.refClaimed ? '<div class="card row" onclick="showReferralConfirm()" style="border:2px solid var(--gold)"><div class="em">📨</div><div class="grow"><div class="t">Отправь подтверждение другу</div><div class="s">Он получит 100 🪙 за то, что пригласил тебя</div></div><div>›</div></div>' : ''}
     <h2 class="section">Основной путь</h2>
     <div class="path">${nodes}</div>
     <h2 class="section">Бонусные паки</h2>
@@ -447,6 +451,7 @@ function renderProfile() {
     <h2 class="section">Достижения</h2>
     <div class="ach-grid">${ACHIEVEMENTS.map((a) => `<div class="ach ${S.achievements.includes(a.id) ? '' : 'off'}"><div class="em">${a.emoji}</div><div><div class="t">${esc(a.title)}</div><div class="s">${esc(a.desc)} · +${a.reward}🪙</div></div></div>`).join('')}</div>
     <h2 class="section">Настройки</h2>
+    ${inviteCard()}
     <div class="card row"><div class="grow"><div class="t">Звуки и вибрация</div></div><button class="btn ${S.sound ? 'turq' : 'ghost'} small-btn" id="sndBtn">${S.sound ? 'Вкл' : 'Выкл'}</button></div>
     <div class="card row"><div class="grow"><div class="t">Проверить микрофон</div><div class="s">Скажи «Merhaba»</div></div><button class="btn turq small-btn" id="micTest">🎙️ Тест</button></div>
     <div class="card row"><div class="grow"><div class="t">Как установить на телефон</div></div><button class="btn ghost small-btn" id="howInstall">?</button></div>
@@ -700,6 +705,7 @@ function finishLesson() {
   L.coins += addCoins(bonus); addXp(REWARD.xpLesson); L.xp += REWARD.xpLesson;
   S.completed[lesson.id] = { stars: Math.max(stars, prev ? prev.stars : 0) };
   S.stats.lessons++;
+  const refFirstLesson = S.stats.lessons === 1 && !!S.refBy;
   if (L.mistakes === 0) S._perfectFlag = true;
   const streakUp = bumpStreak();
   save(); renderTop();
@@ -721,7 +727,7 @@ function finishLesson() {
   </div>`;
   foot(`<button class="btn block" id="doneBtn">Продолжить</button>`);
   sfx('level'); confetti(160);
-  $('#doneBtn').onclick = () => { exitLesson(); checkAchievements(); };
+  $('#doneBtn').onclick = () => { exitLesson(); checkAchievements(); if (refFirstLesson) setTimeout(showReferralConfirm, 700); };
 }
 
 /* ---------- Конфетти ---------- */
@@ -769,8 +775,92 @@ function onboarding() {
   };
 }
 
+/* ---------- Реферальная программа ---------- */
+// Без сервера: друг приходит по ?ref=<uid>, проходит первый урок и отправляет
+// пригласившему ссылку-подтверждение ?claim=<ref>.<friend>.<sig>. Открыв её,
+// пригласивший получает награду (один раз за каждого друга).
+const REF_REWARD = 100;      // пригласившему
+const REF_WELCOME = 50;      // новичку, пришедшему по ссылке
+const REF_SALT = 'turkce-quest-ref-2026';
+function refSig(ref, friend) {
+  let h = 0x811c9dc5; const str = ref + '|' + friend + '|' + REF_SALT;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(36);
+}
+const appBase = () => location.origin + location.pathname.replace(/index\.html$/, '');
+const inviteLink = () => `${appBase()}?ref=${S.uid}`;
+const claimLink = () => `${appBase()}?claim=${S.refBy}.${S.uid}.${refSig(S.refBy, S.uid)}`;
+const isAndroid = () => /android/i.test(navigator.userAgent);
+function openInChrome() {
+  location.href = `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;end`;
+}
+async function shareLink(url, text) {
+  if (navigator.share) { try { await navigator.share({ title: 'Türkçe Quest', text, url }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(`${text}\n${url}`); toast('📋 Ссылка скопирована — вставь её в мессенджер'); }
+  catch (e) { prompt('Скопируй ссылку:', url); }
+}
+function inviteCard() {
+  const n = S.referrals.length;
+  return `<div class="card" style="background:linear-gradient(135deg,#FFF4D6,#FFE6B8);border:2px solid #FFD27A">
+    <div class="row"><div class="em" style="background:#fff">🎁</div>
+      <div class="grow"><div class="t">Пригласи друга — получи ${REF_REWARD} 🪙</div>
+      <div class="s" style="color:#7A5A00">Друг проходит первый урок и присылает тебе подтверждение${n ? ` · приглашено: <b>${n}</b>` : ''}</div></div></div>
+    <button class="btn gold block" style="margin-top:12px" onclick="inviteFriend()">📤 Пригласить друга</button></div>`;
+}
+function inviteFriend() {
+  shareLink(inviteLink(), `Учу турецкий в игре Türkçe Quest 🇹🇷 Проверка произношения, монеты, уровни. Заходи по моей ссылке — получишь +${REF_WELCOME} 🪙 на старте:`);
+}
+function showReferralConfirm() {
+  if (!S.refBy) return;
+  modal(`<div style="text-align:center;font-size:60px">📨</div>
+    <h2 style="text-align:center">Порадуй друга!</h2>
+    <p style="text-align:center">Ты прошёл первый урок 🎉 Отправь подтверждение тому, кто тебя пригласил — он получит <b>${REF_REWARD} 🪙</b>.</p>
+    <p class="sub" style="text-align:center">Другу нужно просто открыть ссылку на своём телефоне.</p>
+    <div class="modal-actions">
+      <button class="btn gold block" id="sendClaim">📤 Отправить подтверждение</button>
+      <button class="btn ghost block" onclick="closeModal()">Позже</button>
+    </div>`);
+  $('#sendClaim').onclick = async () => {
+    await shareLink(claimLink(), `Я прошёл первый урок в Türkçe Quest 🇹🇷 Открой ссылку — заберёшь свои ${REF_REWARD} 🪙 за приглашение:`);
+    S.refClaimed = true; save(); closeModal(); if (tab === 'map') renderMap();
+  };
+}
+function handleReferralParams() {
+  const q = new URLSearchParams(location.search);
+  const ref = q.get('ref'), claim = q.get('claim');
+  if (!ref && !claim) return;
+  history.replaceState(null, '', location.pathname); // убираем параметры из адреса
+  if (ref && /^[a-z0-9]{4,20}$/.test(ref)) {
+    if (ref === S.uid) { setTimeout(() => toast('Это твоя же ссылка 😄 Отправь её другу!'), 500); }
+    else if (!S.refBy && S.stats.lessons === 0) {
+      S.refBy = ref; S.coins += REF_WELCOME; S.totalCoins += REF_WELCOME; save(); renderTop();
+      setTimeout(() => toast(`🎁 Тебя пригласил друг: +${REF_WELCOME} 🪙! Пройди первый урок — и друг тоже получит бонус`, 4000), S.onboarded ? 500 : 6000);
+    }
+  }
+  if (claim) {
+    const [r, f, sig] = claim.split('.');
+    let msg;
+    if (r !== S.uid) msg = '🤔 Это подтверждение для другого игрока. Открой ссылку на телефоне того, кто приглашал.';
+    else if (!f || f === S.uid || sig !== refSig(r, f)) msg = '⚠️ Ссылка-подтверждение повреждена';
+    else if (S.referrals.includes(f)) msg = '✅ Награда за этого друга уже получена';
+    if (msg) { setTimeout(() => toast(msg, 4000), 500); return; }
+    S.referrals.push(f); save();
+    setTimeout(() => {
+      addCoins(REF_REWARD); sfx('level'); confetti(140);
+      modal(`<div style="text-align:center;font-size:64px">🤝</div>
+        <h2 style="text-align:center">Друг прошёл первый урок!</h2>
+        <p style="text-align:center;font-size:22px;font-weight:900;color:var(--gold-d)">+${REF_REWARD} 🪙</p>
+        <p style="text-align:center">Всего приглашено друзей: <b>${S.referrals.length}</b>. Зови ещё — каждый друг приносит ${REF_REWARD} 🪙.</p>
+        <div class="modal-actions"><button class="btn gold block" onclick="closeModal();inviteFriend()">📤 Пригласить ещё</button>
+        <button class="btn ghost block" onclick="closeModal()">Супер!</button></div>`);
+      if (tab === 'map') renderMap();
+    }, S.onboarded ? 400 : 300);
+  }
+}
+
 /* ---------- Старт ---------- */
 checkStreakDecay();
+handleReferralParams();
 renderTop();
 showTab('map');
 if (!S.onboarded) setTimeout(onboarding, 300);
