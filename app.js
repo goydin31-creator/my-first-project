@@ -1,4 +1,5 @@
 'use strict';
+const APP_VERSION = '1.3';
 /* ===================== Türkçe Quest ===================== */
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -469,7 +470,7 @@ function renderProfile() {
     <div class="card row"><div class="grow"><div class="t">Проверить микрофон</div><div class="s">Скажи «Merhaba»</div></div><button class="btn turq small-btn" id="micTest">🎙️ Тест</button></div>
     <div class="card row"><div class="grow"><div class="t">Как установить на телефон</div></div><button class="btn ghost small-btn" id="howInstall">?</button></div>
     <div class="card row"><div class="grow"><div class="t" style="color:var(--wrong)">Сбросить прогресс</div></div><button class="btn red small-btn" id="resetBtn">Сброс</button></div>
-    <p class="sub" style="text-align:center;margin-top:20px">Türkçe Quest · by goidin.ai</p>`;
+    <p class="sub" style="text-align:center;margin-top:20px">Türkçe Quest v${APP_VERSION} · by goidin.ai</p>`;
   $('#sndBtn').onclick = () => { S.sound = !S.sound; save(); renderProfile(); };
   $('#howInstall').onclick = installHelp;
   $('#resetBtn').onclick = () => { modal(`<h2>Сбросить всё?</h2><p>Монеты, уровни и покупки обнулятся. Отменить нельзя.</p>
@@ -575,6 +576,7 @@ function exitLesson() {
   if ('speechSynthesis' in window) speechSynthesis.cancel();
   $('#lesson').classList.add('hidden'); document.body.style.overflow = '';
   lessonCoinMult = 1; L = null; showTab('map');
+  if (updateReady) location.reload();
 }
 function setProgress() {
   $('#lessonProgress').style.width = (L.idx / L.queue.length * 100) + '%';
@@ -912,5 +914,18 @@ handleReferralParams();
 renderTop();
 showTab('map');
 if (!S.onboarded) setTimeout(onboarding, 300);
-if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+/* ---------- Автообновление ---------- */
+// Новая версия ставится сама: при запуске и при каждом возврате в приложение.
+// Если обновление пришло посреди урока — применится после выхода из урока (место урока сохранено).
+let updateReady = false;
+function applyUpdate() { if (L) { updateReady = true; return; } location.reload(); }
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+    const check = () => reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+    setInterval(check, 30 * 60 * 1000);
+  }).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) applyUpdate(); });
+}
 window.addEventListener('popstate', () => { if (L) exitLesson(); });
