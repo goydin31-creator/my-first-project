@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Türkçe Quest</title>
+  <meta name="description" content="Игра для изучения турецкого языка с проверкой произношения">
+  <meta name="theme-color" content="#E30A17">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="lvl" id="lvlBox">
+        <div class="lvl-badge" id="lvlNum">1</div>
+        <div class="lvl-info">
+          <div class="lvl-rank" id="lvlRank">Турист</div>
+          <div class="xpbar"><div class="xpfill" id="xpFill"></div></div>
+        </div>
+      </div>
+      <div class="pills">
+        <div class="pill streak" id="streakPill">🔥 <span id="streakNum">0</span></div>
+        <div class="pill coins" id="coinPill">🪙 <span id="coinNum">0</span></div>
+      </div>
+    </header>
+
+    <main id="screen"></main>
+
+    <nav class="tabbar" id="tabbar">
+      <button data-tab="map" class="active"><span>🗺️</span>Путь</button>
+      <button data-tab="shop"><span>🛒</span>Магазин</button>
+      <button data-tab="library"><span>📚</span>Знания</button>
+      <button data-tab="profile"><span>👤</span>Профиль</button>
+    </nav>
+  </div>
+
+  <!-- Экран урока -->
+  <section id="lesson" class="lesson hidden">
+    <div class="lesson-top">
+      <button class="icon-btn" id="quitBtn" aria-label="Выйти">✕</button>
+      <div class="progress"><div class="progress-fill" id="lessonProgress"></div></div>
+      <div class="combo" id="combo"></div>
+    </div>
+    <div class="lesson-body" id="lessonBody"></div>
+    <div class="lesson-foot" id="lessonFoot"></div>
+  </section>
+
+  <div id="modal" class="modal hidden"><div class="modal-card" id="modalCard"></div></div>
+  <div id="toast" class="toast"></div>
+  <canvas id="confetti"></canvas>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
