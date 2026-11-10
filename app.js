@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION = '1.3';
+const APP_VERSION = '1.4';
 /* ===================== Türkçe Quest ===================== */
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -761,15 +761,22 @@ function finishLesson() {
   save(); renderTop();
   setProgress(); $('#lessonProgress').style.width = '100%';
   const acc = Math.round(L.speechCount ? (L.perfectSpeech / L.speechCount) * 100 : 0);
+  const answers = L.queue.filter((t) => t.type !== 'learn').length, correct = answers - L.mistakes;
+  const err = (n) => n === 1 ? 'ошибка' : n < 5 ? 'ошибки' : 'ошибок';
+  const starsWhy = stars === 3
+    ? '⭐⭐⭐ — все ответы верные с первой попытки!'
+    : `Звёзды даются за ответы: в этот раз ${L.mistakes} ${err(L.mistakes)}. Пройди урок без ошибок — получишь ⭐⭐⭐`;
   $('#lessonBody').innerHTML = `<div class="finish">
     <div class="big-em">${stars === 3 ? '🏆' : stars === 2 ? '🎉' : '👏'}</div>
     <h1>${stars === 3 ? 'Mükemmel!' : stars === 2 ? 'Harika!' : 'Aferin!'}</h1>
     <p class="sub">Урок «${esc(lesson.title)}» пройден${L.mistakes === 0 ? ' без ошибок' : ''}</p>
     <div class="stars" style="color:var(--gold)">${starsStr(stars)}</div>
+    <div class="stars-why">${starsWhy}</div>
     <div class="reward-grid">
-      <div class="reward c"><b>+${L.coins}</b>монет</div>
-      <div class="reward x"><b>+${L.xp}</b>XP</div>
-      <div class="reward a"><b>${acc}%</b>идеально</div>
+      <div class="reward c"><b>+${L.coins}</b>🪙 монет</div>
+      <div class="reward x"><b>+${L.xp}</b>✨ XP</div>
+      <div class="reward ${L.mistakes ? 'o' : 'a'}"><b>${correct}/${answers}</b>🧠 ответы верно</div>
+      <div class="reward a"><b>${acc}%</b>🎙️ произношение идеально</div>
     </div>
     ${streakUp ? `<div class="tip">🔥 Серия: ${S.streak} ${S.streak === 1 ? 'день' : 'дн.'} подряд! Возвращайся завтра.</div>` : ''}
     ${lessonCoinMult > 1 ? '<div class="tip">💰 Бустер x2 сработал!</div>' : ''}

@@ -168,7 +168,10 @@ p.sub{color:var(--muted);margin:0 0 14px;font-weight:600}
 @keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
 .finish h1{font-size:30px;font-weight:900;margin:6px 0}
 .finish .stars{font-size:44px;letter-spacing:6px;margin:6px 0 16px}
-.reward-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.reward-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:16px 0}
+.reward{font-size:13px}
+.reward.o{border-color:#F59E0B;color:#B45309}
+.stars-why{margin:-8px auto 4px;max-width:340px;font-weight:700;font-size:14px;color:var(--muted)}
 .reward{border-radius:16px;padding:12px 4px;border:2px solid;font-weight:900}
 .reward b{display:block;font-size:22px}
 .reward.c{border-color:var(--gold);color:var(--gold-d)}
