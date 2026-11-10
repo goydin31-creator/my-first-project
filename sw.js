@@ -1,4 +1,4 @@
-const CACHE = 'turkce-quest-v2';
+const CACHE = 'turkce-quest-v3';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './data.js', './manifest.webmanifest',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS))); self.skipWaiting(); });

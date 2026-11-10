@@ -28,6 +28,7 @@ const DEFAULT_STATE = {
   streak: 0, lastDay: null, freezes: 0, doubleNext: false,
   stats: { lessons: 0, perfectSpeech: 0, speech: 0, tasks: 0, mistakes: 0 },
   achievements: [], sound: true, onboarded: false,
+  inProgress: {},           // lessonId -> сохранённое место в уроке
   uid: null, refBy: null, refClaimed: false, referrals: [],  // реферальная программа
 };
 let S = load();
@@ -287,7 +288,7 @@ function renderMap() {
     const done = S.completed[l.id], unlocked = isUnlocked(i), current = i === nextIdx;
     const cls = done ? 'done' : current ? 'current' : unlocked ? '' : 'locked';
     return `<div class="node ${cls}" style="transform:translateX(${offsets[i % offsets.length]}px)">
-      ${current ? '<div class="start-tag">Начать!</div>' : ''}
+      ${progressLabel(l.id) ? `<div class="start-tag">▶ ${progressLabel(l.id)}</div>` : current ? '<div class="start-tag">Начать!</div>' : ''}
       <button class="node-btn" data-lesson="${l.id}" data-idx="${i}">${unlocked ? l.emoji : '🔒'}</button>
       <div class="node-title">${esc(l.title)}</div>
       <div class="node-stars" style="color:var(--gold)">${done ? starsStr(done.stars) : ''}</div>
@@ -297,7 +298,7 @@ function renderMap() {
     const owned = S.owned.includes(l.id), done = S.completed[l.id];
     return `<div class="bonus ${owned ? (done ? 'done' : '') : 'locked'}" data-bonus="${l.id}">
       <div class="em">${l.emoji}</div><div class="t">${esc(l.title)}</div><div class="s">${esc(l.subtitle)}</div>
-      ${owned ? (done ? `<div style="color:var(--gold)">${starsStr(done.stars)}</div>` : '<div class="owned">Открыто ▶</div>') : `<div class="price">🔒 ${l.price} 🪙</div>`}
+      ${owned ? (progressLabel(l.id) ? `<div class="owned">▶ Продолжить ${progressLabel(l.id)}</div>` : done ? `<div style="color:var(--gold)">${starsStr(done.stars)}</div>` : '<div class="owned">Открыто ▶</div>') : `<div class="price">🔒 ${l.price} 🪙</div>`}
     </div>`;
   }).join('');
   const allDone = nextIdx === -1;
@@ -305,7 +306,7 @@ function renderMap() {
     <div class="hero">
       <h1>Merhaba, ${allDone ? 'Sultan' : 'dostum'}! 🇹🇷</h1>
       <p>${allDone ? 'Все основы пройдены! Открывай бонусные паки в магазине.' : 'Отвечай, произноси вслух — и только чистое произношение открывает следующее задание.'}</p>
-      ${allDone ? '<button class="btn" onclick="showTab(\'shop\')">В магазин</button>' : `<button class="btn" id="contBtn">▶ ${S.stats.lessons ? 'Продолжить' : 'Начать'}</button>`}
+      ${allDone ? '<button class="btn" onclick="showTab(\'shop\')">В магазин</button>' : `<button class="btn" id="contBtn">▶ ${S.stats.lessons || savedProgress(CORE_LESSONS[nextIdx].id) ? 'Продолжить' : 'Начать'}</button>`}
     </div>
     ${SR ? '' : `<div class="warn">⚠️ Этот браузер не умеет распознавать речь. Открой приложение в <b>Google Chrome</b> на Android — без этого задания не засчитаются.${isAndroid() ? '<div style="margin-top:10px"><button class="btn small-btn" onclick="openInChrome()">Открыть в Chrome</button></div>' : ''}</div>`}
     ${inviteCard()}
@@ -328,7 +329,7 @@ function renderMap() {
 }
 
 function lessonPreview(l) {
-  const done = S.completed[l.id];
+  const done = S.completed[l.id], saved = savedProgress(l.id);
   modal(`<div style="text-align:center;font-size:60px">${l.emoji}</div>
     <h2 style="text-align:center">${esc(l.title)}</h2>
     <p style="text-align:center;color:var(--muted);margin-top:-6px">${esc(l.subtitle)} · ${l.items.length} фраз${done ? ' · ' + starsStr(done.stars) : ''}</p>
@@ -336,12 +337,24 @@ function lessonPreview(l) {
       ${l.items.slice(0, 4).map((it) => `<div style="padding:4px 0"><b style="color:var(--red)">${esc(it.tr)}</b> — ${esc(it.ru)}</div>`).join('')}
       ${l.items.length > 4 ? `<div style="color:var(--muted);padding-top:4px">…и ещё ${l.items.length - 4}</div>` : ''}
     </div>
-    ${S.doubleNext ? '<div class="tip">💰 Активен бустер: x2 монет за этот урок!</div>' : ''}
+    ${saved ? `<div class="card" style="box-shadow:none;border:2px solid var(--green);background:var(--ok-bg)">
+        <div style="font-weight:900;color:var(--green-d)">💾 Ты остановился на задании ${saved.idx + 1} из ${saved.q.length}</div>
+        <div class="progress" style="margin-top:8px;background:#fff"><div class="progress-fill" style="width:${saved.idx / saved.q.length * 100}%"></div></div></div>` : ''}
+    ${S.doubleNext && !saved ? '<div class="tip">💰 Активен бустер: x2 монет за этот урок!</div>' : ''}
     <div class="modal-actions">
-      <button class="btn block" id="goLesson">${done ? '🔁 Пройти снова' : '▶ Начать урок'}</button>
+      <button class="btn block" id="goLesson">${saved ? '▶ Продолжить с места остановки' : done ? '🔁 Пройти заново' : '▶ Начать урок'}</button>
+      ${saved ? '<button class="btn ghost block" id="restartLesson">🔄 Начать урок заново</button>' : ''}
       <button class="btn ghost block" onclick="closeModal()">Позже</button>
     </div>`);
   $('#goLesson').onclick = () => { closeModal(); startLesson(l.id); };
+  if (saved) $('#restartLesson').onclick = () => {
+    modal(`<div style="text-align:center;font-size:54px">🔄</div><h2 style="text-align:center">Начать «${esc(l.title)}» заново?</h2>
+      <p style="text-align:center">Сохранённое место (задание ${saved.idx + 1} из ${saved.q.length}) сбросится, и урок начнётся с первой фразы. Монеты и звёзды останутся.</p>
+      <div class="modal-actions"><button class="btn red block" id="yesRestart">Да, начать заново</button>
+      <button class="btn ghost block" id="noRestart">Нет, продолжить с места</button></div>`);
+    $('#yesRestart').onclick = () => { closeModal(); delete S.inProgress[l.id]; save(); startLesson(l.id, true); };
+    $('#noRestart').onclick = () => { closeModal(); startLesson(l.id); };
+  };
 }
 
 /* ---------- Магазин ---------- */
@@ -507,7 +520,26 @@ function pickType(item, lesson) {
   return types[Math.floor(Math.random() * types.length)];
 }
 
-function startLesson(id) {
+// Сохранение места в уроке — после каждого шага
+function persistLesson(skip = 0) { // skip=1: текущее задание уже засчитано
+  if (!L) return;
+  const items = L.lesson.items;
+  S.inProgress[L.lesson.id] = {
+    q: L.queue.map((t) => ({ t: t.type, i: items.indexOf(t.item), a: t.answered ? 1 : 0 })),
+    idx: L.idx + skip, mistakes: L.mistakes, combo: L.combo, maxCombo: L.maxCombo, coins: L.coins, xp: L.xp,
+    perfectSpeech: L.perfectSpeech, speechCount: L.speechCount, mult: lessonCoinMult, n: items.length,
+  };
+  save();
+}
+function savedProgress(id) {
+  const p = S.inProgress[id], l = lessonById(id);
+  // если содержание урока изменилось в обновлении — старое сохранение не используем
+  if (!p || !l || p.n !== l.items.length || !Array.isArray(p.q) || p.q.some((x) => !l.items[x.i])) return null;
+  return p;
+}
+function progressLabel(id) { const p = savedProgress(id); return p ? `${Math.min(p.idx + 1, p.q.length)}/${p.q.length}` : ''; }
+
+function startLesson(id, restart = false) {
   if (!SR) {
     modal(`<h2>🎙️ Нужен Google Chrome</h2><p>В этом приложении каждое задание засчитывается только после правильного произношения. Этот браузер не умеет распознавать речь.</p>
       <p>Открой ссылку в <b>Chrome на Android</b> (или Chrome/Edge на компьютере).</p>
@@ -515,17 +547,27 @@ function startLesson(id) {
     return;
   }
   const lesson = lessonById(id);
-  lessonCoinMult = S.doubleNext ? 2 : 1;
-  if (S.doubleNext) { S.doubleNext = false; save(); }
-  L = { lesson, queue: buildQueue(lesson), idx: 0, mistakes: 0, combo: 0, maxCombo: 0, coins: 0, xp: 0, perfectSpeech: 0, speechCount: 0 };
+  const saved = restart ? null : savedProgress(id);
+  if (saved) {
+    lessonCoinMult = saved.mult || 1;
+    L = { lesson, queue: saved.q.map((x) => ({ type: x.t, item: lesson.items[x.i], answered: !!x.a })), idx: saved.idx,
+      mistakes: saved.mistakes, combo: saved.combo, maxCombo: saved.maxCombo, coins: saved.coins, xp: saved.xp,
+      perfectSpeech: saved.perfectSpeech, speechCount: saved.speechCount };
+    setTimeout(() => toast(`▶ Продолжаем с задания ${saved.idx + 1} из ${saved.q.length}`), 300);
+  } else {
+    lessonCoinMult = S.doubleNext ? 2 : 1;
+    if (S.doubleNext) { S.doubleNext = false; }
+    L = { lesson, queue: buildQueue(lesson), idx: 0, mistakes: 0, combo: 0, maxCombo: 0, coins: 0, xp: 0, perfectSpeech: 0, speechCount: 0 };
+  }
+  persistLesson();
   $('#lesson').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
   renderTask();
 }
 $('#quitBtn').onclick = () => {
-  modal(`<h2>Выйти из урока?</h2><p>Прогресс урока не сохранится, но заработанные монеты останутся.</p>
+  modal(`<h2>Сделать паузу?</h2><p>💾 Место сохранено — в следующий раз продолжишь ровно с этого задания. Монеты останутся при тебе.</p>
     <div class="modal-actions"><button class="btn block" onclick="closeModal()">Продолжить урок</button>
-    <button class="btn ghost block" id="reallyQuit">Выйти</button></div>`);
+    <button class="btn ghost block" id="reallyQuit">Выйти в меню</button></div>`);
   $('#reallyQuit').onclick = () => { closeModal(); exitLesson(); };
 };
 function exitLesson() {
@@ -545,6 +587,7 @@ function renderTask() {
   const task = L.queue[L.idx];
   if (!task) return finishLesson();
   task.attempts = 0;
+  if (task.answered && task.type !== 'learn') return renderSpeak(task, false);
   const { item } = task;
   const body = $('#lessonBody');
   const others = L.lesson.items.filter((x) => x !== item);
@@ -613,6 +656,7 @@ function renderTask() {
 
 function answerResult(task, right) {
   const { item } = task;
+  task.answered = true;
   if (right) {
     sfx('ok'); L.combo++; L.maxCombo = Math.max(L.maxCombo, L.combo);
     const bonus = Math.min(L.combo - 1, 3);
@@ -620,10 +664,12 @@ function answerResult(task, right) {
     foot(`<div class="feedback ok">✅ Верно!${bonus ? ` Комбо +${bonus}🪙` : ''}</div>
       <button class="btn block" id="toSpeak">🎙️ Теперь произнеси</button>`, 'ok');
     $('#toSpeak').onclick = () => renderSpeak(task, false);
+    persistLesson();
   } else {
     sfx('bad'); L.mistakes++; L.combo = 0; S.stats.mistakes++; save();
     // повторим это слово в конце урока
     L.queue.push({ type: pickType(item, L.lesson), item });
+    persistLesson();
     foot(`<div class="feedback bad">❌ Не совсем<small>Правильно: <b>${esc(item.tr)}</b> — ${esc(item.ru)}</small></div>
       <button class="btn red block" id="toSpeak">🎙️ Произнеси правильный вариант</button>`, 'bad');
     $('#toSpeak').onclick = () => renderSpeak(task, false);
@@ -684,8 +730,9 @@ function evaluate(task, alts) {
     $('#scoreBox').innerHTML = `<div class="score ok">🎯 Точность ${pct}% ${perfect ? '· ⭐ идеально' : ''}</div>`;
     L.coins += addCoins(earned, $('#scoreBox')); L.xp += REWARD.xpTask; addXp(REWARD.xpTask);
     $('#micBtn').disabled = true;
+    persistLesson(1);
     foot(`<div class="feedback ok">🎉 Произношение засчитано! +${Math.round(earned * lessonCoinMult)}🪙</div><button class="btn block" id="nextBtn">Дальше →</button>`, 'ok');
-    $('#nextBtn').onclick = () => { L.idx++; renderTask(); };
+    $('#nextBtn').onclick = () => { L.idx++; persistLesson(); renderTask(); };
   } else {
     sfx('bad');
     $('#micHint').textContent = task.attempts >= 2 ? 'Послушай медленно 🐢 и повтори по слогам' : 'Почти! Попробуй ещё раз';
@@ -699,6 +746,7 @@ function evaluate(task, alts) {
 
 function finishLesson() {
   const lesson = L.lesson;
+  delete S.inProgress[lesson.id];
   const stars = L.mistakes === 0 ? 3 : L.mistakes <= 2 ? 2 : 1;
   const prev = S.completed[lesson.id];
   let bonus = REWARD.lesson + (L.mistakes === 0 ? REWARD.perfectLesson : 0);
