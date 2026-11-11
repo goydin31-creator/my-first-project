@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION = '1.7';
+const APP_VERSION = '1.8';
 /* ===================== Türkçe Quest ===================== */
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -32,6 +32,7 @@ const DEFAULT_STATE = {
   inProgress: {},           // lessonId -> сохранённое место в уроке
   uid: null, refBy: null, refClaimed: false, referrals: [],  // реферальная программа
   premium: false, unlockedPremium: [], redeemedCodes: [],      // премиум и промокоды
+  completedDialogs: [],     // пройденные диалоги
 };
 let S = load();
 if (!S.uid) { S.uid = Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3); save(); }
@@ -614,8 +615,9 @@ function startLesson(id, restart = false) {
   renderTask();
 }
 $('#quitBtn').onclick = () => {
-  modal(`<h2>Сделать паузу?</h2><p>💾 Место сохранено — в следующий раз продолжишь ровно с этого задания. Монеты останутся при тебе.</p>
-    <div class="modal-actions"><button class="btn block" onclick="closeModal()">Продолжить урок</button>
+  const inDialog = !!D;
+  modal(`<h2>${inDialog ? 'Выйти из диалога?' : 'Сделать паузу?'}</h2><p>${inDialog ? 'Диалог короткий — в следующий раз начнётся сначала. Заработанные монеты останутся.' : '💾 Место сохранено — в следующий раз продолжишь ровно с этого задания. Монеты останутся при тебе.'}</p>
+    <div class="modal-actions"><button class="btn block" onclick="closeModal()">${inDialog ? 'Продолжить диалог' : 'Продолжить урок'}</button>
     <button class="btn ghost block" id="reallyQuit">Выйти в меню</button></div>`);
   $('#reallyQuit').onclick = () => { closeModal(); exitLesson(); };
 };
@@ -623,7 +625,7 @@ function exitLesson() {
   try { if (activeRec) activeRec.abort(); } catch (e) {}
   if ('speechSynthesis' in window) speechSynthesis.cancel();
   $('#lesson').classList.add('hidden'); document.body.style.overflow = '';
-  lessonCoinMult = 1; L = null; showTab('map');
+  lessonCoinMult = 1; L = null; D = null; showTab('map');
   if (updateReady) location.reload();
 }
 function setProgress() {
@@ -631,6 +633,149 @@ function setProgress() {
   $('#combo').textContent = L.combo >= 2 ? `🔥x${L.combo}` : '';
 }
 function foot(html, cls = '') { const f = $('#lessonFoot'); f.className = 'lesson-foot ' + cls; f.innerHTML = html; }
+
+/* ===================== ДИАЛОГИ (подстановка слова + произношение) ===================== */
+let D = null;
+function startDialogue(id) {
+  if (!SR) { toast('🎙️ Для диалогов нужен Google Chrome на Android'); return; }
+  const d = CLASSIFIEDS.dialogs.find((x) => x.id === id);
+  if (!d) return;
+  D = { d, idx: 0, coins: 0, xp: 0, mistakes: 0 };
+  $('#lesson').classList.remove('hidden'); document.body.style.overflow = 'hidden';
+  renderDialogStep();
+}
+function dlgProgress() { $('#lessonProgress').style.width = (D.idx / D.d.lines.length * 100) + '%'; $('#combo').textContent = '💬'; }
+function dlgHistory(upto) {
+  return D.d.lines.slice(0, upto).map((l) => {
+    const me = l.who === 'you';
+    return `<div style="display:flex;justify-content:${me ? 'flex-end' : 'flex-start'};margin:4px 0">
+      <div style="max-width:80%;padding:9px 13px;border-radius:16px;font-weight:700;font-size:15px;
+        background:${me ? 'var(--turq)' : 'var(--card)'};color:${me ? '#fff' : 'var(--ink)'};
+        border:2px solid ${me ? 'var(--turq)' : 'var(--line)'};border-bottom-${me ? 'right' : 'left'}-radius:4px">
+        ${esc(l.tr)}<div style="font-weight:600;font-size:12px;opacity:.8;margin-top:2px">${esc(l.ru)}</div></div></div>`;
+  }).join('');
+}
+function renderDialogStep() {
+  dlgProgress();
+  const line = D.d.lines[D.idx];
+  if (!line) return finishDialogue();
+  const body = $('#lessonBody');
+  if (line.who === 'them') {
+    body.innerHTML = `<div class="task-label">${D.d.emoji} ${esc(D.d.title)}</div>${dlgHistory(D.idx)}
+      <div style="display:flex;justify-content:flex-start;margin:4px 0"><div style="max-width:85%;padding:12px 15px;border-radius:16px;border-bottom-left-radius:4px;background:var(--card);border:2px solid var(--line)">
+        <div style="font-size:19px;font-weight:900;color:var(--red)">${esc(line.tr)}</div>
+        <div style="font-weight:700;margin-top:2px">${esc(line.ru)}</div>
+        <div class="audio-row" style="justify-content:flex-start;margin-top:8px"><button class="audio-btn" id="p1">🔊</button><button class="audio-btn" id="p2">🐢</button></div></div></div>`;
+    $('#p1').onclick = () => say(line.tr); $('#p2').onclick = () => say(line.tr, true);
+    setTimeout(() => say(line.tr), 350);
+    foot(`<button class="btn block" id="dlgNext">Дальше →</button>`);
+    $('#dlgNext').onclick = () => { D.idx++; renderDialogStep(); };
+    return;
+  }
+  // реплика игрока
+  if (line.blank) return renderDialogFill(line);
+  renderDialogSpeak(line);
+}
+function renderDialogFill(line) {
+  const body = $('#lessonBody');
+  const re = new RegExp(line.blank.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  const gapped = esc(line.tr).replace(re, '<span id="gap" style="display:inline-block;min-width:92px;border-bottom:3px dashed var(--turq);color:var(--turq-d);font-weight:900">?</span>');
+  body.innerHTML = `<div class="task-label">✍️ Твоя реплика — вставь слово</div>${dlgHistory(D.idx)}
+    <div class="word-card" style="width:100%"><div style="font-size:22px;font-weight:900;line-height:1.3">${gapped}</div>
+      <div class="ru" style="margin-top:8px">${esc(line.ru)}</div></div>
+    <input id="fillInput" inputmode="latin" autocapitalize="off" autocomplete="off" placeholder="впиши слово…"
+      style="width:100%;padding:14px;font-size:19px;font-weight:800;text-align:center;border:2px solid var(--line);border-radius:14px;margin-bottom:10px">
+    <p class="sub" style="text-align:center;margin:0 0 8px">Впиши или выбери подсказку:</p>
+    <div class="chips" id="fillOpts">${shuffle(line.opts).map((o) => `<button class="chip" data-opt="${esc(o)}">${esc(o)}</button>`).join('')}</div>
+    <div id="fillMsg" class="sub" style="text-align:center;min-height:20px;margin-top:8px"></div>`;
+  const inp = $('#fillInput');
+  const updateGap = () => { const g = $('#gap'); if (g) g.textContent = inp.value || '?'; };
+  inp.addEventListener('input', updateGap);
+  document.querySelectorAll('[data-opt]').forEach((b) => b.onclick = () => { inp.value = b.dataset.opt; updateGap(); sfx('tap'); });
+  foot(`<button class="btn block" id="fillCheck">Проверить</button>`);
+  $('#fillCheck').onclick = () => {
+    const ok = deaccent(norm(inp.value)) === deaccent(norm(line.blank));
+    if (ok) {
+      sfx('ok'); D.coins += addCoins(REWARD.answer); D.xp += REWARD.xpTask; addXp(REWARD.xpTask);
+      const g = $('#gap'); if (g) { g.style.borderBottom = 'none'; g.style.color = 'var(--green-d)'; g.textContent = line.blank; }
+      foot(`<div class="feedback ok">✅ Верно!</div><button class="btn block" id="toDlgSpeak">🎙️ Теперь произнеси</button>`, 'ok');
+      $('#toDlgSpeak').onclick = () => renderDialogSpeak(line);
+    } else {
+      sfx('bad'); D.mistakes++;
+      $('#fillMsg').innerHTML = `Пока нет. Правильно: <b style="color:var(--red)">${esc(line.blank)}</b>`;
+      inp.value = line.blank; updateGap();
+      foot(`<button class="btn block" id="toDlgSpeak">🎙️ Произнеси правильный вариант</button>`);
+      $('#toDlgSpeak').onclick = () => renderDialogSpeak(line);
+    }
+  };
+  setTimeout(() => inp.focus(), 100);
+}
+function renderDialogSpeak(line) {
+  const body = $('#lessonBody');
+  body.innerHTML = `<div class="speak-wrap">
+      <div class="speak-badge">🎙️ ПРОИЗНЕСИ СВОЮ РЕПЛИКУ</div>
+      <div class="word-card" style="width:100%"><div class="tr">${esc(line.tr)}</div><div class="ph">[${esc(line.ph)}]</div><div class="ru">${esc(line.ru)}</div>
+        <div class="audio-row"><button class="audio-btn" id="p1">🔊</button><button class="audio-btn" id="p2">🐢</button></div></div>
+      <button class="mic" id="micBtn">🎙️</button>
+      <div class="mic-hint" id="micHint">Нажми и скажи фразу</div>
+      <div class="heard" id="heard"></div><div id="scoreBox"></div></div>`;
+  $('#p1').onclick = () => say(line.tr); $('#p2').onclick = () => say(line.tr, true);
+  foot(`<button class="btn block" id="nextBtn" disabled>🔒 Дальше — после произношения</button>`);
+  const micBtn = $('#micBtn'); let listening = false, attempts = 0;
+  const resetMic = () => { micBtn.classList.remove('listening'); micBtn.textContent = '🎙️'; };
+  micBtn.onclick = () => {
+    if (listening) { try { activeRec && activeRec.stop(); } catch (e) {} return; }
+    listening = true; micBtn.classList.add('listening'); micBtn.textContent = '👂';
+    $('#micHint').textContent = 'Говори...'; $('#heard').textContent = ''; $('#scoreBox').innerHTML = '';
+    listen({
+      onInterim: (t) => { $('#heard').textContent = '«' + t + '»'; },
+      onDone: (alts) => { listening = false; resetMic(); evalDialog(line, alts, ++attempts); },
+      onError: (er) => { listening = false; resetMic(); micError(er); $('#micHint').textContent = 'Попробуй ещё раз'; },
+    });
+  };
+}
+function evalDialog(line, alts, attempts) {
+  if (!alts.length) { $('#micHint').textContent = 'Не расслышал 🤔 Говори чуть громче'; return; }
+  let best = alts[0], score = 0;
+  for (const a of alts) { const sc = similarity(a, line.tr); if (sc > score) { score = sc; best = a; } }
+  const pct = Math.round(score * 100), passed = score >= passThreshold(line.tr);
+  $('#heard').textContent = '«' + best + '»';
+  if (passed) {
+    sfx('ok'); const perfect = score >= 0.9;
+    let earned = REWARD.speech + (attempts === 1 ? REWARD.speechFirstTry : 0) + (perfect ? REWARD.perfectSpeech : 0);
+    if (perfect) S.stats.perfectSpeech++;
+    S.stats.speech++; save();
+    $('#micHint').textContent = perfect ? 'Mükemmel! 🇹🇷' : 'Güzel! Засчитано 👍';
+    $('#scoreBox').innerHTML = `<div class="score ok">🎯 Точность ${pct}%</div>`;
+    D.coins += addCoins(earned, $('#scoreBox')); D.xp += REWARD.xpTask; addXp(REWARD.xpTask);
+    $('#micBtn').disabled = true;
+    foot(`<div class="feedback ok">🎉 Засчитано! +${earned}🪙</div><button class="btn block" id="nextBtn">Дальше →</button>`, 'ok');
+    $('#nextBtn').onclick = () => { D.idx++; renderDialogStep(); };
+  } else {
+    sfx('bad');
+    $('#micHint').textContent = attempts >= 2 ? 'Послушай медленно 🐢 и повтори' : 'Почти! Ещё раз';
+    $('#scoreBox').innerHTML = `<div class="score bad">Точность ${pct}% · нужно ${Math.round(passThreshold(line.tr) * 100)}%</div><div class="letters">${diffLetters(best, line.tr)}</div>`;
+    if (attempts >= 2) setTimeout(() => say(line.tr, true), 400);
+  }
+}
+function finishDialogue() {
+  const bonus = 30; D.coins += addCoins(bonus); addXp(REWARD.xpLesson); D.xp += REWARD.xpLesson;
+  if (!S.completedDialogs.includes(D.d.id)) S.completedDialogs.push(D.d.id);
+  save(); renderTop();
+  $('#lessonProgress').style.width = '100%';
+  $('#lessonBody').innerHTML = `<div class="finish">
+    <div class="big-em">🗣️</div><h1>Harika!</h1>
+    <p class="sub">Диалог «${esc(D.d.title)}» пройден</p>
+    <div class="reward-grid">
+      <div class="reward c"><b>+${D.coins}</b>🪙 монет</div>
+      <div class="reward x"><b>+${D.xp}</b>✨ XP</div>
+    </div>
+    <div class="tip">Теперь ты можешь поддержать такой разговор вживую 💪</div></div>`;
+  foot(`<button class="btn block" id="doneBtn">Продолжить</button>`);
+  sfx('level'); confetti(140);
+  $('#doneBtn').onclick = () => { exitLesson(); checkAchievements(); };
+}
+
 
 function renderTask() {
   setProgress();
@@ -976,6 +1121,23 @@ function classifiedsCard() {
       <div class="grow"><div class="t" style="color:#fff">${esc(CLASSIFIEDS.title)}</div>
       <div class="s" style="color:#D6E4FF">${esc(CLASSIFIEDS.subtitle)} · ${pr.total} категорий${pr.done ? ` · пройдено ${pr.done}/${pr.total}` : ''}</div></div><div style="color:#fff">›</div></div></div>`;
 }
+function dialoguePreview(id) {
+  const d = CLASSIFIEDS.dialogs.find((x) => x.id === id);
+  modal(`<div style="text-align:center;font-size:56px">${d.emoji}</div>
+    <h2 style="text-align:center">${esc(d.title)}</h2>
+    <p style="text-align:center;color:var(--muted);margin-top:-6px">${esc(d.subtitle)}</p>
+    <div class="card" style="box-shadow:none;border:2px solid var(--line)">
+      <div style="font-weight:700;margin-bottom:6px">Как это работает:</div>
+      <div style="padding:3px 0">💬 Собеседник пишет реплику</div>
+      <div style="padding:3px 0">✍️ В твоей реплике вставляешь пропущенное слово</div>
+      <div style="padding:3px 0">🎙️ Произносишь фразу вслух — и дальше</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn block" id="goDlg">▶ Начать диалог</button>
+      <button class="btn ghost block" onclick="closeModal()">Позже</button>
+    </div>`);
+  $('#goDlg').onclick = () => { closeModal(); startDialogue(id); };
+}
 function openCollection() {
   const rows = CLASSIFIEDS.sections.map((sec) => {
     const done = S.completed[sec.id], lbl = progressLabel(sec.id);
@@ -983,14 +1145,23 @@ function openCollection() {
     return `<div class="card row" data-sec="${sec.id}" style="cursor:pointer"><div class="em">${sec.emoji}</div>
       <div class="grow"><div class="t">${esc(sec.title)}</div><div class="s">${esc(sec.subtitle)} · ${sec.items.length} слов</div></div>${right}</div>`;
   }).join('');
+  const dlgRows = CLASSIFIEDS.dialogs.map((d) => {
+    const done = S.completedDialogs.includes(d.id);
+    return `<div class="card row" data-dlg="${d.id}" style="cursor:pointer"><div class="em">${d.emoji}</div>
+      <div class="grow"><div class="t">${esc(d.title)}</div><div class="s">${esc(d.subtitle)} · ${d.lines.length} реплик</div></div>
+      ${done ? '<div style="color:var(--green-d);font-weight:900">✓</div>' : '<div style="color:var(--turq-d);font-weight:900">▶</div>'}</div>`;
+  }).join('');
   const pr = classifiedsProgress();
   modal(`<div style="text-align:center;font-size:56px">${CLASSIFIEDS.emoji}</div>
     <h2 style="text-align:center">${esc(CLASSIFIEDS.title)}</h2>
     <p style="text-align:center;color:var(--muted);margin-top:-6px">${esc(CLASSIFIEDS.subtitle)}</p>
     <p class="sub" style="text-align:center">Выбери категорию. Пройдено ${pr.done} из ${pr.total}.</p>
     ${rows}
+    <h3 style="margin:18px 0 8px">💬 Диалоги <span style="font-weight:700;color:var(--muted);font-size:14px">· вставь слово и произнеси</span></h3>
+    ${dlgRows}
     <div class="modal-actions"><button class="btn ghost block" onclick="closeModal()">Закрыть</button></div>`);
   document.querySelectorAll('[data-sec]').forEach((b) => b.onclick = () => { closeModal(); lessonPreview(lessonById(b.dataset.sec)); });
+  document.querySelectorAll('[data-dlg]').forEach((b) => b.onclick = () => { closeModal(); dialoguePreview(b.dataset.dlg); });
 }
 
 /* ---------- Премиум-паки и промокоды ---------- */
