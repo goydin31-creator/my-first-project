@@ -196,3 +196,17 @@ p.sub{color:var(--muted);margin:0 0 14px;font-weight:600}
 .warn{background:#FFF1E6;border:2px solid #FFC79A;border-radius:16px;padding:12px 14px;font-weight:700;font-size:14px;margin:12px 0;color:#7A3B00}
 .fly{position:fixed;z-index:70;font-weight:900;color:var(--gold-d);font-size:20px;pointer-events:none;animation:flyup 1s forwards}
 @keyframes flyup{to{transform:translateY(-70px);opacity:0}}
+
+/* Алфавит */
+.alpha-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:8px 0}
+.alpha-cell{background:var(--card);border:2px solid var(--line);border-bottom-width:4px;border-radius:12px;padding:8px 2px;text-align:center}
+.alpha-cell:active{transform:translateY(2px)}
+.alpha-l{font-weight:900;font-size:16px;color:var(--red)}
+.alpha-n{font-size:11px;color:var(--muted);font-weight:700;margin-top:2px}
+@media (max-width:360px){.alpha-grid{grid-template-columns:repeat(4,1fr)}}
+/* Недельный график */
+.week{display:flex;align-items:flex-end;justify-content:space-between;gap:6px;height:92px}
+.wbar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%}
+.wfill{width:100%;max-width:26px;border-radius:6px 6px 0 0;min-height:2px;transition:height .4s}
+.wbar span{font-size:11px;color:var(--muted);font-weight:700}
+.icon-btn.fav{font-size:18px}.icon-btn.fav.on{color:var(--gold)}

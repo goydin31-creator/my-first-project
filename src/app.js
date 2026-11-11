@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION = '1.8';
+const APP_VERSION = '1.9';
 /* ===================== Türkçe Quest ===================== */
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -33,6 +33,8 @@ const DEFAULT_STATE = {
   uid: null, refBy: null, refClaimed: false, referrals: [],  // реферальная программа
   premium: false, unlockedPremium: [], redeemedCodes: [],      // премиум и промокоды
   completedDialogs: [],     // пройденные диалоги
+  dailyGoal: 20, xpByDay: {}, // ежедневная цель
+  wordStats: {}, favorites: [], // интервальное повторение и избранное
 };
 let S = load();
 if (!S.uid) { S.uid = Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3); save(); }
@@ -92,7 +94,9 @@ function addCoins(n, el) {
 }
 function addXp(n) {
   const before = levelInfo(S.xp).lvl;
-  S.xp += n; save(); renderTop();
+  S.xp += n;
+  const t = todayKey(); S.xpByDay[t] = (S.xpByDay[t] || 0) + n;
+  save(); renderTop();
   const after = levelInfo(S.xp).lvl;
   if (after > before) setTimeout(() => { sfx('level'); toast(`⬆️ Новый уровень ${after}: ${levelInfo(S.xp).rank}!`); }, 300);
 }
@@ -265,6 +269,119 @@ function renderTop() {
   $('#coinNum').textContent = S.coins; $('#streakNum').textContent = S.streak;
 }
 
+/* ===================== Алфавит, цель, интервальное повторение ===================== */
+// --- Алфавит ---
+function openAlphabet() {
+  const cells = TURKISH_ALPHABET.map((a, i) => `<button class="alpha-cell" data-ai="${i}">
+    <div class="alpha-l">${esc(a.l)} ${esc(a.l.toLocaleLowerCase('tr-TR'))}</div><div class="alpha-n">${esc(a.n)}</div></button>`).join('');
+  modal(`<div style="text-align:center;font-size:48px">🔤</div>
+    <h2 style="text-align:center">Турецкий алфавит</h2>
+    <p class="sub" style="text-align:center">29 букв · нажми, чтобы услышать пример</p>
+    <div class="alpha-grid">${cells}</div>
+    <div id="alphaInfo" class="tip" style="text-align:center;display:none"></div>
+    <div class="modal-actions"><button class="btn ghost block" onclick="closeModal()">Закрыть</button></div>`);
+  document.querySelectorAll('[data-ai]').forEach((b) => b.onclick = () => {
+    const a = TURKISH_ALPHABET[+b.dataset.ai]; sfx('tap'); say(a.ex);
+    const info = $('#alphaInfo'); info.style.display = 'block';
+    info.innerHTML = `<b style="color:var(--red);font-size:18px">${esc(a.l)} ${esc(a.l.toLocaleLowerCase('tr-TR'))}</b> — звук «${esc(a.n)}» · пример: <b>${esc(a.ex)}</b> (${esc(a.exru)}) 🔊`;
+  });
+}
+
+// --- Ежедневная цель ---
+const todayXp = () => S.xpByDay[todayKey()] || 0;
+function last7Days() {
+  const out = [];
+  for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); out.push({ key: todayKey(d), label: ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'][d.getDay()], xp: S.xpByDay[todayKey(d)] || 0 }); }
+  return out;
+}
+function goalRing(size = 64) {
+  const pct = Math.min(1, todayXp() / S.dailyGoal), r = size / 2 - 6, c = 2 * Math.PI * r, done = pct >= 1;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="6"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${done ? 'var(--green)' : 'var(--gold)'}" stroke-width="6" stroke-linecap="round"
+      stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - pct)}" transform="rotate(-90 ${size/2} ${size/2})"/>
+    <text x="50%" y="52%" text-anchor="middle" dominant-baseline="middle" font-size="${done ? size*0.4 : size*0.26}" font-weight="900" fill="var(--ink)">${done ? '✓' : todayXp()}</text>
+  </svg>`;
+}
+
+// --- Интервальное повторение (SRS, Leitner) ---
+const SRS_HOURS = [4, 8, 24, 72, 168, 384];
+function learnedWords() {
+  const seen = new Set(), out = [];
+  [...CORE_LESSONS, ...BONUS_LESSONS, ...PREMIUM_LESSONS, ...CLASSIFIEDS.sections].forEach((l) => {
+    if (!S.completed[l.id]) return;
+    l.items.forEach((w) => { if (!seen.has(w.tr)) { seen.add(w.tr); out.push(w); } });
+  });
+  return out;
+}
+function ws(tr) { return S.wordStats[tr] || (S.wordStats[tr] = { box: 0, due: 0, right: 0, wrong: 0 }); }
+function markWord(tr, ok) {
+  const st = ws(tr);
+  if (ok) { st.right++; st.box = Math.min(5, st.box + 1); } else { st.wrong++; st.box = Math.max(0, st.box - 1); }
+  st.due = Date.now() + SRS_HOURS[st.box] * 3600 * 1000;
+  save();
+}
+function dueWords() { const now = Date.now(); return learnedWords().filter((w) => (S.wordStats[w.tr] ? S.wordStats[w.tr].due : 0) <= now); }
+function dueCount() { return dueWords().length; }
+
+let T = null;
+function startTraining() {
+  const learned = learnedWords();
+  if (learned.length < 4) { toast('Пройди хотя бы один урок — и здесь появится тренировка 💪'); return; }
+  let pool = dueWords();
+  if (pool.length < 8) { // добираем ближайшими по сроку
+    const extra = learned.filter((w) => !pool.includes(w)).sort((a, b) => (S.wordStats[a.tr]?.due || 0) - (S.wordStats[b.tr]?.due || 0));
+    pool = pool.concat(extra).slice(0, Math.max(pool.length, Math.min(12, learned.length)));
+  }
+  pool = shuffle(pool).slice(0, 12);
+  T = { pool, idx: 0, right: 0, coins: 0, all: learned };
+  $('#lesson').classList.remove('hidden'); document.body.style.overflow = 'hidden';
+  renderTraining();
+}
+function renderTraining() {
+  $('#lessonProgress').style.width = (T.idx / T.pool.length * 100) + '%'; $('#combo').textContent = '🔁';
+  const w = T.pool[T.idx];
+  if (!w) return finishTraining();
+  const toRu = Math.random() < 0.5;
+  const others = sample(T.all.filter((x) => x.tr !== w.tr), 3);
+  const opts = shuffle([w, ...others]);
+  const box = S.wordStats[w.tr] ? S.wordStats[w.tr].box : 0;
+  $('#lessonBody').innerHTML = `<div class="task-label">🔁 Тренировка · повторение</div>
+    <div class="word-card"><div style="font-size:13px;font-weight:800;color:var(--muted)">${'●'.repeat(box + 1)}${'○'.repeat(5 - box)} уровень памяти</div>
+      <div class="tr" style="margin-top:8px">${esc(toRu ? w.tr : w.ru)}</div>
+      ${toRu ? `<button class="audio-btn" id="pSay" style="margin:10px auto 0;display:block">🔊</button>` : ''}</div>
+    <div class="task-label">${toRu ? 'Выбери перевод' : 'Как по-турецки?'}</div>
+    <div class="options">${opts.map((o, i) => `<button class="opt" data-i="${i}">${esc(toRu ? o.ru : o.tr)}</button>`).join('')}</div>`;
+  if (toRu) $('#pSay').onclick = () => say(w.tr);
+  let answered = false;
+  document.querySelectorAll('.opt').forEach((b) => b.onclick = () => {
+    if (answered) return; answered = true;
+    const chosen = opts[+b.dataset.i], ok = chosen.tr === w.tr;
+    document.querySelectorAll('.opt').forEach((x, i) => { x.disabled = true; if (opts[i].tr === w.tr) x.classList.add('right'); else if (i === +b.dataset.i) x.classList.add('wrong'); });
+    markWord(w.tr, ok);
+    if (ok) { sfx('ok'); T.right++; T.coins += addCoins(2); addXp(3); if (!toRu) say(w.tr); }
+    else { sfx('bad'); say(w.tr); }
+    foot(`<div class="feedback ${ok ? 'ok' : 'bad'}">${ok ? '✅ Верно!' : `❌ <small>${esc(w.tr)} — ${esc(w.ru)}</small>`}</div><button class="btn block" id="tNext">Дальше →</button>`, ok ? 'ok' : 'bad');
+    $('#tNext').onclick = () => { T.idx++; renderTraining(); };
+  });
+  foot(`<p class="sub" style="text-align:center;margin:0">Выбери ответ</p>`);
+}
+function finishTraining() {
+  addXp(10); const bonus = addCoins(10); T.coins += bonus;
+  $('#lessonProgress').style.width = '100%';
+  const acc = Math.round(T.right / T.pool.length * 100);
+  $('#lessonBody').innerHTML = `<div class="finish"><div class="big-em">🧠</div><h1>Отличная тренировка!</h1>
+    <p class="sub">Повторено слов: ${T.pool.length}</p>
+    <div class="reward-grid">
+      <div class="reward ${acc >= 70 ? 'a' : 'o'}"><b>${acc}%</b>🎯 точность</div>
+      <div class="reward c"><b>+${T.coins}</b>🪙 монет</div>
+    </div>
+    <div class="tip">🔁 Слова вернутся на повтор, когда придёт время — так они запоминаются надолго.</div></div>`;
+  foot(`<button class="btn block" id="doneBtn">Продолжить</button>`);
+  sfx('level'); confetti(120);
+  $('#doneBtn').onclick = () => { exitLesson(); checkAchievements(); };
+}
+
 /* ===================== ВКЛАДКИ ===================== */
 let tab = 'map';
 document.querySelectorAll('#tabbar button').forEach((b) => b.addEventListener('click', () => { sfx('tap'); showTab(b.dataset.tab); }));
@@ -320,6 +437,7 @@ function renderMap() {
       ${allDone ? '<button class="btn" onclick="showTab(\'shop\')">В магазин</button>' : `<button class="btn" id="contBtn">▶ ${S.stats.lessons || savedProgress(CORE_LESSONS[nextIdx].id) ? 'Продолжить' : 'Начать'}</button>`}
     </div>
     ${SR ? '' : `<div class="warn">⚠️ Этот браузер не умеет распознавать речь. Открой приложение в <b>Google Chrome</b> на Android — без этого задания не засчитаются.${isAndroid() ? '<div style="margin-top:10px"><button class="btn small-btn" onclick="openInChrome()">Открыть в Chrome</button></div>' : ''}</div>`}
+    ${dailyCard()}
     ${inviteCard()}
     ${S.refBy && S.stats.lessons > 0 && !S.refClaimed ? '<div class="card row" onclick="showReferralConfirm()" style="border:2px solid var(--gold)"><div class="em">📨</div><div class="grow"><div class="t">Отправь подтверждение другу</div><div class="s">Он получит 100 🪙 за то, что пригласил тебя</div></div><div>›</div></div>' : ''}
     <h2 class="section">Основной путь</h2>
@@ -334,6 +452,7 @@ function renderMap() {
     <p class="sub">Открываются по промокоду</p>
     <div class="bonus-grid">${premium}</div>`;
   const cb = $('#contBtn'); if (cb) cb.onclick = () => startLesson(CORE_LESSONS[nextIdx].id);
+  const tb = $('#dailyTrain'); if (tb) tb.onclick = startTraining;
   document.querySelectorAll('.node-btn').forEach((b) => b.onclick = () => {
     const i = +b.dataset.idx;
     if (!isUnlocked(i)) { sfx('bad'); toast('🔒 Сначала пройди предыдущий урок'); return; }
@@ -468,21 +587,30 @@ function renderLibrary() {
   const owned = KNOWLEDGE.filter((k) => S.owned.includes(k.id));
   const locked = KNOWLEDGE.filter((k) => !S.owned.includes(k.id));
   const words = [...CORE_LESSONS, ...BONUS_LESSONS, ...PREMIUM_LESSONS, ...CLASSIFIEDS.sections].filter((l) => S.completed[l.id]).flatMap((l) => l.items);
+  const due = dueCount();
   $('#screen').innerHTML = `
     <h2 class="section">Мои знания</h2>
-    <p class="sub">Открытые карточки и выученный словарь</p>
+    <p class="sub">Алфавит, тренировка и твой словарь</p>
+    <div class="card row" id="alphaCard" style="cursor:pointer;background:linear-gradient(135deg,#fff,#FFF2EC);border:2px solid var(--line)"><div class="em">🔤</div>
+      <div class="grow"><div class="t">Турецкий алфавит</div><div class="s">29 букв с озвучкой</div></div><div>›</div></div>
+    <div class="card row" id="trainCard" style="cursor:pointer;background:linear-gradient(135deg,#E6FBF8,#fff);border:2px solid var(--turq)"><div class="em">🔁</div>
+      <div class="grow"><div class="t">Тренировка ${due ? `<span style="color:var(--turq-d)">· ${due} на повтор</span>` : ''}</div><div class="s">${words.length ? 'Повтори слова, чтобы не забыть' : 'Пройди урок, чтобы открыть'}</div></div><button class="btn turq small-btn">Старт</button></div>
     ${owned.length ? owned.map((k) => `<div class="card row" data-read="${k.id}"><div class="em">${k.emoji}</div><div class="grow"><div class="t">${esc(k.title)}</div><div class="s">Нажми, чтобы читать</div></div><div>›</div></div>`).join('')
       : '<div class="card" style="text-align:center;color:var(--muted);font-weight:700">Пока пусто. Купи первую карточку в магазине 👇</div>'}
     ${locked.length ? `<h2 class="section" style="font-size:18px">🔒 Можно открыть</h2>
       ${locked.map((k) => `<div class="card row" style="opacity:.7"><div class="em">${k.emoji}</div><div class="grow"><div class="t">${esc(k.title)}</div></div><button class="btn gold small-btn" data-buy="${k.id}" data-kind="card">${k.price} 🪙</button></div>`).join('')}` : ''}
     <h2 class="section" style="font-size:18px">📖 Мой словарь · ${words.length}</h2>
-    ${words.length ? `<div class="card">${words.map((w) => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">
+    ${words.length ? `<div class="card">${[...words].sort((a, b) => (S.favorites.includes(b.tr) ? 1 : 0) - (S.favorites.includes(a.tr) ? 1 : 0)).map((w) => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">
+        <button class="icon-btn fav ${S.favorites.includes(w.tr) ? 'on' : ''}" data-fav="${esc(w.tr)}">${S.favorites.includes(w.tr) ? '⭐' : '☆'}</button>
         <div class="grow"><b style="color:var(--red)">${esc(w.tr)}</b><div class="s">${esc(w.ru)} · [${esc(w.ph)}]</div></div>
         <button class="icon-btn" data-say="${esc(w.tr)}">🔊</button></div>`).join('')}</div>`
       : '<div class="card" style="color:var(--muted);font-weight:700;text-align:center">Пройди урок — слова появятся здесь</div>'}`;
   bindShopButtons();
+  $('#alphaCard').onclick = openAlphabet;
+  $('#trainCard').onclick = startTraining;
   document.querySelectorAll('.card[data-read]').forEach((c) => c.onclick = () => openKnowledge(c.dataset.read));
   document.querySelectorAll('[data-say]').forEach((b) => b.onclick = () => say(b.dataset.say));
+  document.querySelectorAll('[data-fav]').forEach((b) => b.onclick = () => { const t = b.dataset.fav; const i = S.favorites.indexOf(t); if (i < 0) S.favorites.push(t); else S.favorites.splice(i, 1); save(); renderLibrary(); });
 }
 function openKnowledge(id) {
   const k = KNOWLEDGE.find((x) => x.id === id);
@@ -502,14 +630,21 @@ function renderProfile() {
       <div style="font-size:22px;font-weight:900">${li.rank}</div>
       <div style="color:var(--muted);font-weight:700">Уровень ${li.lvl} · ${S.xp} XP</div>
     </div>
+    <h2 class="section">Прогресс</h2>
+    <div class="card" style="display:flex;align-items:center;gap:14px">${goalRing(72)}
+      <div class="grow"><div class="t">Ежедневная цель</div><div class="s">${todayXp()} из ${S.dailyGoal} XP сегодня</div>
+        <div style="display:flex;gap:6px;margin-top:8px">${[10,20,50].map((g)=>`<button class="btn ${S.dailyGoal===g?'turq':'ghost'} small-btn" data-goal="${g}" style="padding:6px 12px">${g}</button>`).join('')}</div></div></div>
+    <div class="card"><div class="t" style="margin-bottom:10px">XP за неделю</div>
+      <div class="week">${last7Days().map((d)=>{const mx=Math.max(S.dailyGoal,...last7Days().map(x=>x.xp));const h=Math.round(d.xp/mx*70)+2;return `<div class="wbar"><div class="wfill" style="height:${h}px;background:${d.xp>=S.dailyGoal?'var(--green)':'var(--gold)'}"></div><span>${d.label}</span></div>`;}).join('')}</div></div>
     <div class="stats">
       <div class="stat"><b>${done}/${total}</b><span>уроков</span></div>
-      <div class="stat"><b>${S.stats.speech}</b><span>произнесено</span></div>
+      <div class="stat"><b>${learnedWords().length}</b><span>слов выучено</span></div>
       <div class="stat"><b>${S.stats.perfectSpeech}</b><span>идеально</span></div>
       <div class="stat"><b>${S.streak}🔥</b><span>серия</span></div>
       <div class="stat"><b>${S.totalCoins}</b><span>заработано 🪙</span></div>
-      <div class="stat"><b>${S.owned.length}</b><span>покупок</span></div>
+      <div class="stat"><b>${S.completedDialogs.length}</b><span>диалогов</span></div>
     </div>
+    <div class="card row" id="profTrain" style="cursor:pointer;border:2px solid var(--turq)"><div class="em">🔁</div><div class="grow"><div class="t">Тренировка слов</div><div class="s">${dueCount()} на повтор сейчас</div></div><button class="btn turq small-btn">Старт</button></div>
     <h2 class="section">Достижения</h2>
     <div class="ach-grid">${ACHIEVEMENTS.map((a) => `<div class="ach ${S.achievements.includes(a.id) ? '' : 'off'}"><div class="em">${a.emoji}</div><div><div class="t">${esc(a.title)}</div><div class="s">${esc(a.desc)} · +${a.reward}🪙</div></div></div>`).join('')}</div>
     <h2 class="section">Настройки</h2>
@@ -521,6 +656,8 @@ function renderProfile() {
     <div class="card row"><div class="grow"><div class="t" style="color:var(--wrong)">Сбросить прогресс</div></div><button class="btn red small-btn" id="resetBtn">Сброс</button></div>
     <p class="sub" style="text-align:center;margin-top:20px">Türkçe Quest v${APP_VERSION} · by goidin.ai</p>`;
   $('#sndBtn').onclick = () => { S.sound = !S.sound; save(); renderProfile(); };
+  document.querySelectorAll('[data-goal]').forEach((b) => b.onclick = () => { S.dailyGoal = +b.dataset.goal; save(); renderProfile(); });
+  const pt = $('#profTrain'); if (pt) pt.onclick = startTraining;
   $('#howInstall').onclick = installHelp;
   $('#resetBtn').onclick = () => { modal(`<h2>Сбросить всё?</h2><p>Монеты, уровни и покупки обнулятся. Отменить нельзя.</p>
     <div class="modal-actions"><button class="btn red block" id="yesReset">Да, сбросить</button><button class="btn ghost block" onclick="closeModal()">Отмена</button></div>`);
@@ -615,7 +752,7 @@ function startLesson(id, restart = false) {
   renderTask();
 }
 $('#quitBtn').onclick = () => {
-  const inDialog = !!D;
+  const inDialog = !!D || !!T;
   modal(`<h2>${inDialog ? 'Выйти из диалога?' : 'Сделать паузу?'}</h2><p>${inDialog ? 'Диалог короткий — в следующий раз начнётся сначала. Заработанные монеты останутся.' : '💾 Место сохранено — в следующий раз продолжишь ровно с этого задания. Монеты останутся при тебе.'}</p>
     <div class="modal-actions"><button class="btn block" onclick="closeModal()">${inDialog ? 'Продолжить диалог' : 'Продолжить урок'}</button>
     <button class="btn ghost block" id="reallyQuit">Выйти в меню</button></div>`);
@@ -625,7 +762,7 @@ function exitLesson() {
   try { if (activeRec) activeRec.abort(); } catch (e) {}
   if ('speechSynthesis' in window) speechSynthesis.cancel();
   $('#lesson').classList.add('hidden'); document.body.style.overflow = '';
-  lessonCoinMult = 1; L = null; D = null; showTab('map');
+  lessonCoinMult = 1; L = null; D = null; T = null; showTab('map');
   if (updateReady) location.reload();
 }
 function setProgress() {
@@ -1107,6 +1244,17 @@ function handleReferralParams() {
       if (tab === 'map') renderMap();
     }, S.onboarded ? 400 : 300);
   }
+}
+
+function dailyCard() {
+  const met = todayXp() >= S.dailyGoal, due = dueCount();
+  return `<div class="card" style="display:flex;align-items:center;gap:14px">
+    ${goalRing(64)}
+    <div class="grow" style="min-width:0">
+      <div class="t" style="font-weight:900">${met ? '🎉 Цель на сегодня выполнена!' : `Цель дня: ${todayXp()} / ${S.dailyGoal} XP`}</div>
+      <div class="s">🔥 Серия ${S.streak} ${S.streak === 1 ? 'день' : 'дн.'}${due ? ` · 🔁 ${due} слов на повтор` : ''}</div>
+    </div>
+    ${due ? '<button class="btn turq small-btn" id="dailyTrain">🔁 Повтор</button>' : ''}</div>`;
 }
 
 /* ---------- Коллекция «Турция по объявлениям» ---------- */

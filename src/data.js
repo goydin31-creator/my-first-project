@@ -527,4 +527,36 @@ const ACHIEVEMENTS = [
   { id: 'rich', emoji: '🪙', title: 'Копилка', desc: 'Заработай 1000 монет за всё время', reward: 50 },
 ];
 
+const TURKISH_ALPHABET = [
+  { l: 'A', n: 'а', ex: 'anne', exru: 'мама' },
+  { l: 'B', n: 'бе', ex: 'baba', exru: 'папа' },
+  { l: 'C', n: 'дже', ex: 'cam', exru: 'стекло' },
+  { l: 'Ç', n: 'че', ex: 'çay', exru: 'чай' },
+  { l: 'D', n: 'де', ex: 'deniz', exru: 'море' },
+  { l: 'E', n: 'э', ex: 'ev', exru: 'дом' },
+  { l: 'F', n: 'фе', ex: 'fil', exru: 'слон' },
+  { l: 'G', n: 'ге', ex: 'gül', exru: 'роза' },
+  { l: 'Ğ', n: 'мягкое г', ex: 'dağ', exru: 'гора (удлиняет гласную)' },
+  { l: 'H', n: 'хе', ex: 'hava', exru: 'воздух' },
+  { l: 'I', n: 'ы', ex: 'ılık', exru: 'тёплый' },
+  { l: 'İ', n: 'и', ex: 'iki', exru: 'два' },
+  { l: 'J', n: 'жэ', ex: 'jöle', exru: 'желе' },
+  { l: 'K', n: 'ке', ex: 'kedi', exru: 'кошка' },
+  { l: 'L', n: 'ле', ex: 'limon', exru: 'лимон' },
+  { l: 'M', n: 'ме', ex: 'masa', exru: 'стол' },
+  { l: 'N', n: 'не', ex: 'numara', exru: 'номер' },
+  { l: 'O', n: 'о', ex: 'oda', exru: 'комната' },
+  { l: 'Ö', n: 'ё', ex: 'göz', exru: 'глаз' },
+  { l: 'P', n: 'пе', ex: 'para', exru: 'деньги' },
+  { l: 'R', n: 'ре', ex: 'renk', exru: 'цвет' },
+  { l: 'S', n: 'се', ex: 'su', exru: 'вода' },
+  { l: 'Ş', n: 'ше', ex: 'şeker', exru: 'сахар' },
+  { l: 'T', n: 'те', ex: 'tuz', exru: 'соль' },
+  { l: 'U', n: 'у', ex: 'un', exru: 'мука' },
+  { l: 'Ü', n: 'ю', ex: 'ütü', exru: 'утюг' },
+  { l: 'V', n: 'ве', ex: 'vazo', exru: 'ваза' },
+  { l: 'Y', n: 'йе', ex: 'yıl', exru: 'год' },
+  { l: 'Z', n: 'зе', ex: 'zaman', exru: 'время' },
+];
+
 const RANKS = ['Турист', 'Гость', 'Путешественник', 'Местный', 'Знаток', 'Эфенди', 'Паша', 'Визирь', 'Султан'];
