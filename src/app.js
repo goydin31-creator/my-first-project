@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION = '1.6';
+const APP_VERSION = '1.7';
 /* ===================== Türkçe Quest ===================== */
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -279,7 +279,7 @@ $('#streakPill').addEventListener('click', () => modal(`<h2>🔥 Серия: ${S
   <p>🧊 Заморозок в запасе: <b>${S.freezes}</b></p>
   <div class="modal-actions"><button class="btn block" onclick="closeModal()">Понятно</button></div>`));
 
-function lessonById(id) { return CORE_LESSONS.find((l) => l.id === id) || BONUS_LESSONS.find((l) => l.id === id) || PREMIUM_LESSONS.find((l) => l.id === id); }
+function lessonById(id) { return CORE_LESSONS.find((l) => l.id === id) || BONUS_LESSONS.find((l) => l.id === id) || PREMIUM_LESSONS.find((l) => l.id === id) || CLASSIFIEDS.sections.find((l) => l.id === id); }
 function premiumUnlocked(id) { return !!S.premium || S.unlockedPremium.includes(id); }
 function isUnlocked(i) { return i === 0 || !!S.completed[CORE_LESSONS[i - 1].id]; }
 function starsStr(n) { return '★'.repeat(n) + '☆'.repeat(3 - n); }
@@ -326,6 +326,9 @@ function renderMap() {
     <h2 class="section">Бонусные паки</h2>
     <p class="sub">Открываются за монеты в магазине</p>
     <div class="bonus-grid">${bonus}</div>
+    <h2 class="section">📣 Большой разговорник</h2>
+    <p class="sub">Язык объявлений: категории, жильё, авто, товары</p>
+    ${classifiedsCard()}
     <h2 class="section">💎 Премиум-уроки</h2>
     <p class="sub">Открываются по промокоду</p>
     <div class="bonus-grid">${premium}</div>`;
@@ -416,6 +419,8 @@ function renderShop() {
     <h2 class="section">Магазин знаний</h2>
     <p class="sub">У тебя ${S.coins} 🪙 — зарабатывай их на уроках и вкладывай в новые знания</p>
     ${premiumCard()}
+    <h2 class="section" style="font-size:18px">📣 Турция по объявлениям</h2>
+    <p class="sub">Большой урок по категориям — бесплатно</p>${classifiedsCard()}
     <h2 class="section" style="font-size:18px">💎 Премиум-уроки</h2>
     <p class="sub">Открываются по промокоду</p>${PREMIUM_LESSONS.map(premRow).join('')}
     <h2 class="section" style="font-size:18px">📦 Бонусные уроки</h2>${BONUS_LESSONS.map(packRow).join('')}
@@ -461,7 +466,7 @@ function buyDialog(item, kind) {
 function renderLibrary() {
   const owned = KNOWLEDGE.filter((k) => S.owned.includes(k.id));
   const locked = KNOWLEDGE.filter((k) => !S.owned.includes(k.id));
-  const words = [...CORE_LESSONS, ...BONUS_LESSONS, ...PREMIUM_LESSONS].filter((l) => S.completed[l.id]).flatMap((l) => l.items);
+  const words = [...CORE_LESSONS, ...BONUS_LESSONS, ...PREMIUM_LESSONS, ...CLASSIFIEDS.sections].filter((l) => S.completed[l.id]).flatMap((l) => l.items);
   $('#screen').innerHTML = `
     <h2 class="section">Мои знания</h2>
     <p class="sub">Открытые карточки и выученный словарь</p>
@@ -488,7 +493,7 @@ function openKnowledge(id) {
 /* ---------- Профиль ---------- */
 function renderProfile() {
   const li = levelInfo(S.xp);
-  const total = CORE_LESSONS.length + BONUS_LESSONS.length + PREMIUM_LESSONS.length;
+  const total = CORE_LESSONS.length + BONUS_LESSONS.length + PREMIUM_LESSONS.length + CLASSIFIEDS.sections.length;
   const done = Object.keys(S.completed).length;
   $('#screen').innerHTML = `
     <div class="card" style="text-align:center">
@@ -957,6 +962,35 @@ function handleReferralParams() {
       if (tab === 'map') renderMap();
     }, S.onboarded ? 400 : 300);
   }
+}
+
+/* ---------- Коллекция «Турция по объявлениям» ---------- */
+function classifiedsProgress() {
+  const done = CLASSIFIEDS.sections.filter((x) => S.completed[x.id]).length;
+  return { done, total: CLASSIFIEDS.sections.length };
+}
+function classifiedsCard() {
+  const pr = classifiedsProgress();
+  return `<div class="card" style="background:linear-gradient(135deg,#1f6feb,#0b4aa2);border:2px solid #4b8ef5;color:#fff;cursor:pointer" onclick="openCollection()">
+    <div class="row"><div class="em" style="background:rgba(255,255,255,.14)">${CLASSIFIEDS.emoji}</div>
+      <div class="grow"><div class="t" style="color:#fff">${esc(CLASSIFIEDS.title)}</div>
+      <div class="s" style="color:#D6E4FF">${esc(CLASSIFIEDS.subtitle)} · ${pr.total} категорий${pr.done ? ` · пройдено ${pr.done}/${pr.total}` : ''}</div></div><div style="color:#fff">›</div></div></div>`;
+}
+function openCollection() {
+  const rows = CLASSIFIEDS.sections.map((sec) => {
+    const done = S.completed[sec.id], lbl = progressLabel(sec.id);
+    const right = lbl ? `<div class="owned">▶ ${lbl}</div>` : done ? `<div style="color:var(--gold)">${starsStr(done.stars)}</div>` : '<div style="color:var(--turq-d);font-weight:900">▶</div>';
+    return `<div class="card row" data-sec="${sec.id}" style="cursor:pointer"><div class="em">${sec.emoji}</div>
+      <div class="grow"><div class="t">${esc(sec.title)}</div><div class="s">${esc(sec.subtitle)} · ${sec.items.length} слов</div></div>${right}</div>`;
+  }).join('');
+  const pr = classifiedsProgress();
+  modal(`<div style="text-align:center;font-size:56px">${CLASSIFIEDS.emoji}</div>
+    <h2 style="text-align:center">${esc(CLASSIFIEDS.title)}</h2>
+    <p style="text-align:center;color:var(--muted);margin-top:-6px">${esc(CLASSIFIEDS.subtitle)}</p>
+    <p class="sub" style="text-align:center">Выбери категорию. Пройдено ${pr.done} из ${pr.total}.</p>
+    ${rows}
+    <div class="modal-actions"><button class="btn ghost block" onclick="closeModal()">Закрыть</button></div>`);
+  document.querySelectorAll('[data-sec]').forEach((b) => b.onclick = () => { closeModal(); lessonPreview(lessonById(b.dataset.sec)); });
 }
 
 /* ---------- Премиум-паки и промокоды ---------- */
