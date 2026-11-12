@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION = '1.9';
+const APP_VERSION = '2.0';
 /* ===================== Türkçe Quest ===================== */
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -871,8 +871,20 @@ function renderDialogSpeak(line) {
     });
   };
 }
+function dialogFallback(line) {
+  foot(`<button class="btn block" id="passAnyway">✅ Засчитать и продолжить</button>
+    <p class="sub" style="text-align:center;margin:8px 0 0">Короткие слова микрофон ловит хуже — можно идти дальше</p>`);
+  $('#passAnyway').onclick = () => {
+    sfx('ok'); S.stats.speech++; save();
+    D.coins += addCoins(REWARD.speech); D.xp += REWARD.xpTask; addXp(REWARD.xpTask);
+    try { $('#micBtn').disabled = true; } catch (e) {}
+    foot(`<div class="feedback ok">👍 Засчитано!</div><button class="btn block" id="nextBtn">Дальше →</button>`, 'ok');
+    $('#nextBtn').onclick = () => { D.idx++; renderDialogStep(); };
+  };
+}
 function evalDialog(line, alts, attempts) {
-  if (!alts.length) { $('#micHint').textContent = 'Не расслышал 🤔 Говори чуть громче'; return; }
+  const stuckAt = isShort(line.tr) ? 2 : 3;
+  if (!alts.length) { $('#micHint').textContent = 'Не расслышал 🤔 Говори чуть громче'; if (attempts >= stuckAt) dialogFallback(line); return; }
   let best = alts[0], score = 0;
   for (const a of alts) { const sc = similarity(a, line.tr); if (sc > score) { score = sc; best = a; } }
   const pct = Math.round(score * 100), passed = score >= passThreshold(line.tr);
@@ -893,6 +905,7 @@ function evalDialog(line, alts, attempts) {
     $('#micHint').textContent = attempts >= 2 ? 'Послушай медленно 🐢 и повтори' : 'Почти! Ещё раз';
     $('#scoreBox').innerHTML = `<div class="score bad">Точность ${pct}% · нужно ${Math.round(passThreshold(line.tr) * 100)}%</div><div class="letters">${diffLetters(best, line.tr)}</div>`;
     if (attempts >= 2) setTimeout(() => say(line.tr, true), 400);
+    if (attempts >= stuckAt) dialogFallback(line);
   }
 }
 function finishDialogue() {
@@ -1038,12 +1051,27 @@ function renderSpeak(task, fromLearn) {
   function resetMic() { micBtn.classList.remove('listening'); micBtn.textContent = '🎙️'; }
 }
 
+function isShort(tr) { return norm(tr).replace(/ /g, '').length <= 3; }
+function lessonFallback(task) {
+  foot(`<button class="btn block" id="passAnyway">✅ Засчитать и продолжить</button>
+    <p class="sub" style="text-align:center;margin:8px 0 0">Короткие слова микрофон ловит хуже — это нормально, можно идти дальше</p>`);
+  $('#passAnyway').onclick = () => {
+    sfx('ok'); S.stats.speech++; L.speechCount++; save();
+    L.coins += addCoins(REWARD.speech); L.xp += REWARD.xpTask; addXp(REWARD.xpTask);
+    try { $('#micBtn').disabled = true; } catch (e) {}
+    persistLesson(1);
+    foot(`<div class="feedback ok">👍 Засчитано. Yallah, дальше!</div><button class="btn block" id="nextBtn">Дальше →</button>`, 'ok');
+    $('#nextBtn').onclick = () => { L.idx++; persistLesson(); renderTask(); };
+  };
+}
 function evaluate(task, alts) {
   const { item } = task;
   task.attempts = (task.attempts || 0) + 1;
+  const stuckAt = isShort(item.tr) ? 2 : 3;
   if (!alts.length) {
     $('#micHint').textContent = 'Не расслышал 🤔 Говори чуть громче и ближе к телефону';
     $('#heard').textContent = '';
+    if (task.attempts >= stuckAt) lessonFallback(task);
     return;
   }
   let best = alts[0], score = 0;
@@ -1071,8 +1099,9 @@ function evaluate(task, alts) {
     $('#scoreBox').innerHTML = `<div class="score bad">Точность ${pct}% · нужно ${Math.round(passThreshold(item.tr) * 100)}%</div>
       <div class="letters">${diffLetters(best, item.tr)}</div>
       ${task.attempts >= 2 ? `<div class="tip">💡 Подсказка: произноси как <b>[${esc(item.ph)}]</b>. Ударение обычно на последний слог.</div>` : ''}`;
-    if (task.attempts === 3) setTimeout(() => say(item.tr, true), 400);
-    foot(`<button class="btn block" id="nextBtn" disabled>🔒 Дальше — после произношения</button>`, 'bad');
+    if (task.attempts >= stuckAt) setTimeout(() => say(item.tr, true), 400);
+    if (task.attempts >= stuckAt) lessonFallback(task);
+    else foot(`<button class="btn block" id="nextBtn" disabled>🔒 Дальше — после произношения</button>`, 'bad');
   }
 }
 
