@@ -113,13 +113,88 @@ const CORE_LESSONS = [
       { tr: 'Merak etme', ru: 'Не волнуйся', ph: 'мерак этме' },
     ],
   },
+  {
+    id: 'food', emoji: '🍽️', title: 'Еда и продукты', subtitle: 'Что купить и съесть',
+    items: [
+      { tr: 'Ekmek', ru: 'Хлеб', ph: 'экмек' },
+      { tr: 'Peynir', ru: 'Сыр', ph: 'пейнир' },
+      { tr: 'Yumurta', ru: 'Яйцо', ph: 'юмурта' },
+      { tr: 'Meyve', ru: 'Фрукты', ph: 'мейве' },
+      { tr: 'Sebze', ru: 'Овощи', ph: 'себзе' },
+      { tr: 'Et', ru: 'Мясо', ph: 'эт' },
+      { tr: 'Balık', ru: 'Рыба', ph: 'балык' },
+      { tr: 'Tavuk', ru: 'Курица', ph: 'тавук' },
+      { tr: 'Süt', ru: 'Молоко', ph: 'сют' },
+      { tr: 'Tatlı', ru: 'Десерт / сладкое', ph: 'татлы' },
+    ],
+  },
+  {
+    id: 'shopping', emoji: '🛍️', title: 'Покупки', subtitle: 'Цены, размеры, оплата',
+    items: [
+      { tr: 'Mağaza', ru: 'Магазин', ph: 'мааза' },
+      { tr: 'Market', ru: 'Продуктовый', ph: 'маркет' },
+      { tr: 'Para', ru: 'Деньги', ph: 'пара' },
+      { tr: 'Ucuz', ru: 'Дёшево', ph: 'уджуз' },
+      { tr: 'Pahalı', ru: 'Дорого', ph: 'пахалы' },
+      { tr: 'Kaça?', ru: 'Почём?', ph: 'кача' },
+      { tr: 'Beden', ru: 'Размер', ph: 'беден' },
+      { tr: 'Poşet', ru: 'Пакет', ph: 'пошет' },
+      { tr: 'Kartla', ru: 'Картой', ph: 'картла' },
+      { tr: 'İndirim', ru: 'Скидка', ph: 'индирим' },
+    ],
+  },
+  {
+    id: 'transport', emoji: '🚌', title: 'Транспорт', subtitle: 'Автобус, билет, остановка',
+    items: [
+      { tr: 'Otobüs', ru: 'Автобус', ph: 'отобюс' },
+      { tr: 'Metro', ru: 'Метро', ph: 'метро' },
+      { tr: 'Taksi', ru: 'Такси', ph: 'такси' },
+      { tr: 'Bilet', ru: 'Билет', ph: 'билет' },
+      { tr: 'Durak', ru: 'Остановка', ph: 'дурак' },
+      { tr: 'Tren', ru: 'Поезд', ph: 'трен' },
+      { tr: 'Havalimanı', ru: 'Аэропорт', ph: 'хавалиманы' },
+      { tr: 'Nereye?', ru: 'Куда?', ph: 'нерее' },
+      { tr: 'Ne zaman?', ru: 'Когда?', ph: 'нэ заман' },
+      { tr: 'Burada ineceğim', ru: 'Я выйду здесь', ph: 'бурада инеджеим' },
+    ],
+  },
+  {
+    id: 'weather', emoji: '🌦️', title: 'Погода и природа', subtitle: 'Солнце, дождь, море',
+    items: [
+      { tr: 'Hava', ru: 'Погода', ph: 'хава' },
+      { tr: 'Güneşli', ru: 'Солнечно', ph: 'гюнешли' },
+      { tr: 'Yağmur', ru: 'Дождь', ph: 'яамур' },
+      { tr: 'Kar', ru: 'Снег', ph: 'кар' },
+      { tr: 'Rüzgar', ru: 'Ветер', ph: 'рюзгяр' },
+      { tr: 'Sıcak', ru: 'Жарко', ph: 'сыджак' },
+      { tr: 'Soğuk', ru: 'Холодно', ph: 'соук' },
+      { tr: 'Deniz', ru: 'Море', ph: 'дениз' },
+      { tr: 'Güneş', ru: 'Солнце', ph: 'гюнеш' },
+      { tr: 'Bugün hava güzel', ru: 'Сегодня хорошая погода', ph: 'бугюн хава гюзель' },
+    ],
+  },
+  {
+    id: 'colors', emoji: '🎨', title: 'Цвета', subtitle: 'Основные цвета',
+    items: [
+      { tr: 'Kırmızı', ru: 'Красный', ph: 'кырмызы' },
+      { tr: 'Mavi', ru: 'Синий', ph: 'мави' },
+      { tr: 'Yeşil', ru: 'Зелёный', ph: 'ешиль' },
+      { tr: 'Sarı', ru: 'Жёлтый', ph: 'сары' },
+      { tr: 'Siyah', ru: 'Чёрный', ph: 'сиях' },
+      { tr: 'Beyaz', ru: 'Белый', ph: 'беяз' },
+      { tr: 'Turuncu', ru: 'Оранжевый', ph: 'турунджу' },
+      { tr: 'Pembe', ru: 'Розовый', ph: 'пембе' },
+      { tr: 'Mor', ru: 'Фиолетовый', ph: 'мор' },
+      { tr: 'Gri', ru: 'Серый', ph: 'гри' },
+    ],
+  },
 ];
 
 // ===== ПРЕМИУМ-УРОКИ =====
 // Открываются промокодом (продаются через каналы автора). rub — рекомендованная цена.
 const PREMIUM_LESSONS = [
   {
-    id: 'realty', emoji: '🏠', title: 'Турецкий для недвижимости', subtitle: 'Аренда, покупка, осмотр объекта', rub: 299,
+    id: 'realty', emoji: '🏠', title: 'Турецкий для недвижимости', subtitle: 'Аренда, покупка, осмотр объекта', price: 500,
     items: [
       { tr: 'Daire kiralamak istiyorum', ru: 'Хочу снять квартиру', ph: 'даирэ кираламак истийорум' },
       { tr: 'Satılık mı, kiralık mı?', ru: 'Продаётся или сдаётся?', ph: 'сатылык мы, кьиралык мы' },
@@ -131,7 +206,7 @@ const PREMIUM_LESSONS = [
     ],
   },
   {
-    id: 'business', emoji: '💼', title: 'Деловые переговоры', subtitle: 'Встречи, договоры, сделки', rub: 299,
+    id: 'business', emoji: '💼', title: 'Деловые переговоры', subtitle: 'Встречи, договоры, сделки', price: 500,
     items: [
       { tr: 'Toplantı ne zaman?', ru: 'Когда встреча?', ph: 'топланты нэ заман' },
       { tr: 'Teklifinizi bekliyorum', ru: 'Жду ваше предложение', ph: 'теклифинизи беклийорум' },
@@ -143,7 +218,7 @@ const PREMIUM_LESSONS = [
     ],
   },
   {
-    id: 'emergency', emoji: '🚑', title: 'Экстренные ситуации', subtitle: 'Здоровье, помощь, безопасность', rub: 199,
+    id: 'emergency', emoji: '🚑', title: 'Экстренные ситуации', subtitle: 'Здоровье, помощь, безопасность', price: 400,
     items: [
       { tr: 'Yardım edin!', ru: 'Помогите!', ph: 'ярдым эдин' },
       { tr: 'Doktora ihtiyacım var', ru: 'Мне нужен врач', ph: 'доктора ихтияджым вар' },
@@ -154,12 +229,54 @@ const PREMIUM_LESSONS = [
       { tr: 'Polisi arayın', ru: 'Позвоните в полицию', ph: 'полиси арайын' },
     ],
   },
+  {
+    id: 'bank', emoji: '🏦', title: 'Банк и документы', subtitle: 'Счёт, карта, оплата', price: 500,
+    items: [
+      { tr: 'Banka', ru: 'Банк', ph: 'банка' },
+      { tr: 'Hesap açmak istiyorum', ru: 'Хочу открыть счёт', ph: 'хесап ачмак истийорум' },
+      { tr: 'Para çekmek', ru: 'Снять деньги', ph: 'пара чекмек' },
+      { tr: 'Kredi kartı', ru: 'Кредитная карта', ph: 'креди карты' },
+      { tr: 'Kimlik', ru: 'Удостоверение личности', ph: 'кимлик' },
+      { tr: 'İmza', ru: 'Подпись', ph: 'имза' },
+      { tr: 'Döviz', ru: 'Валюта / обмен', ph: 'дёвиз' },
+      { tr: 'Fatura', ru: 'Счёт / квитанция', ph: 'фатура' },
+      { tr: 'Randevu almak', ru: 'Записаться на приём', ph: 'рандеву алмак' },
+    ],
+  },
+  {
+    id: 'tech', emoji: '💻', title: 'Технологии и интернет', subtitle: 'Телефон, приложения, сеть', price: 450,
+    items: [
+      { tr: 'İnternet', ru: 'Интернет', ph: 'интернет' },
+      { tr: 'Şifre', ru: 'Пароль', ph: 'шифре' },
+      { tr: 'Bağlantı', ru: 'Соединение', ph: 'баланты' },
+      { tr: 'Uygulama', ru: 'Приложение', ph: 'уйгулама' },
+      { tr: 'İndir', ru: 'Скачать', ph: 'индир' },
+      { tr: 'Güncelle', ru: 'Обновить', ph: 'гюнджелле' },
+      { tr: 'Ekran', ru: 'Экран', ph: 'экран' },
+      { tr: 'Şarj', ru: 'Зарядка', ph: 'шарж' },
+      { tr: 'Mesaj gönder', ru: 'Отправить сообщение', ph: 'месаж гёндер' },
+    ],
+  },
+  {
+    id: 'idioms', emoji: '🧠', title: 'Пословицы и идиомы', subtitle: 'Звучи как местный', price: 600,
+    items: [
+      { tr: 'Güle güle kullan', ru: 'Носи/пользуйся с удовольствием', ph: 'гюле гюле куллан' },
+      { tr: 'Eline sağlık', ru: 'Спасибо за труд (здоровья рукам)', ph: 'элине саалык' },
+      { tr: 'Maşallah', ru: 'Молодец! / Как хорошо!', ph: 'машаллах' },
+      { tr: 'İnşallah', ru: 'Если даст Бог / Надеюсь', ph: 'иншаллах' },
+      { tr: 'Geçmiş olsun', ru: 'Выздоравливай', ph: 'гечмиш олсун' },
+      { tr: 'Hayırlı olsun', ru: 'В добрый час / Поздравляю', ph: 'хайырлы олсун' },
+      { tr: 'Kolay gelsin', ru: 'Лёгкой работы', ph: 'колай гельсин' },
+      { tr: 'Afiyet olsun', ru: 'Приятного аппетита', ph: 'афиет олсун' },
+      { tr: 'Gözün aydın', ru: 'Поздравляю с радостью', ph: 'гёзюн айдын' },
+    ],
+  },
 ];
 
 // Бонусные паки — открываются в магазине за монеты
 const BONUS_LESSONS = [
   {
-    id: 'taxi', emoji: '🚕', title: 'Такси и дорога', subtitle: 'Для тех, кто за рулём', price: 150,
+    id: 'taxi', emoji: '🚕', title: 'Такси и дорога', subtitle: 'Для тех, кто за рулём', price: 350,
     items: [
       { tr: 'Taksi çağırır mısınız?', ru: 'Вызовите такси?', ph: 'такси чаырыр мысыныз' },
       { tr: 'Havalimanına, lütfen', ru: 'В аэропорт, пожалуйста', ph: 'хавалиманына, лютфен' },
@@ -171,7 +288,7 @@ const BONUS_LESSONS = [
     ],
   },
   {
-    id: 'bazaar', emoji: '🛍️', title: 'Базар и торг', subtitle: 'Сбиваем цену как местный', price: 150,
+    id: 'bazaar', emoji: '🛍️', title: 'Базар и торг', subtitle: 'Сбиваем цену как местный', price: 350,
     items: [
       { tr: 'İndirim var mı?', ru: 'Есть скидка?', ph: 'индирим вар мы' },
       { tr: 'Biraz indirim yapar mısınız?', ru: 'Сделаете небольшую скидку?', ph: 'бираз индирим япар мысыныз' },
@@ -183,7 +300,7 @@ const BONUS_LESSONS = [
     ],
   },
   {
-    id: 'slang', emoji: '🔥', title: 'Сленг и эмоции', subtitle: 'Звучи как турок', price: 200,
+    id: 'slang', emoji: '🔥', title: 'Сленг и эмоции', subtitle: 'Звучи как турок', price: 300,
     items: [
       { tr: 'Harika!', ru: 'Супер!', ph: 'харика' },
       { tr: 'Aynen', ru: 'Точно! / Ага', ph: 'айнен' },
@@ -195,7 +312,7 @@ const BONUS_LESSONS = [
     ],
   },
   {
-    id: 'creator', emoji: '🎬', title: 'AI-креатор и бизнес', subtitle: 'Контент, соцсети, сделки', price: 250,
+    id: 'creator', emoji: '🎬', title: 'AI-креатор и бизнес', subtitle: 'Контент, соцсети, сделки', price: 350,
     items: [
       { tr: 'Yapay zeka', ru: 'Искусственный интеллект', ph: 'япай зека' },
       { tr: 'Video çekiyorum', ru: 'Я снимаю видео', ph: 'видео чекийорум' },
@@ -207,7 +324,7 @@ const BONUS_LESSONS = [
     ],
   },
   {
-    id: 'romance', emoji: '💘', title: 'Комплименты', subtitle: 'Растопить сердце', price: 200,
+    id: 'romance', emoji: '💘', title: 'Комплименты', subtitle: 'Растопить сердце', price: 300,
     items: [
       { tr: 'Çok güzelsin', ru: 'Ты очень красивая', ph: 'чок гюзельсин' },
       { tr: 'Gülüşün çok tatlı', ru: 'У тебя милая улыбка', ph: 'гюлюшюн чок татлы' },

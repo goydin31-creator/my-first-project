@@ -1,5 +1,5 @@
 'use strict';
-const APP_VERSION = '2.0';
+const APP_VERSION = '2.1';
 /* ===================== Türkçe Quest ===================== */
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -10,12 +10,12 @@ const todayKey = (d = new Date()) => `${d.getFullYear()}-${d.getMonth() + 1}-${d
 
 /* ---------- Награды ---------- */
 const REWARD = {
-  answer: 5,          // правильный ответ с первой попытки
-  speech: 5,          // засчитанное произношение
-  speechFirstTry: 3,  // бонус: произнёс с первой попытки
-  perfectSpeech: 2,   // бонус: точность ≥ 90%
-  lesson: 25,         // урок пройден
-  perfectLesson: 25,  // без ошибок
+  answer: 2,          // правильный ответ с первой попытки
+  speech: 1,          // засчитанное произношение
+  speechFirstTry: 1,  // бонус: произнёс с первой попытки
+  perfectSpeech: 1,   // бонус: точность ≥ 90%
+  lesson: 10,         // урок пройден
+  perfectLesson: 10,  // без ошибок
   xpTask: 10,
   xpLesson: 50,
 };
@@ -359,7 +359,7 @@ function renderTraining() {
     const chosen = opts[+b.dataset.i], ok = chosen.tr === w.tr;
     document.querySelectorAll('.opt').forEach((x, i) => { x.disabled = true; if (opts[i].tr === w.tr) x.classList.add('right'); else if (i === +b.dataset.i) x.classList.add('wrong'); });
     markWord(w.tr, ok);
-    if (ok) { sfx('ok'); T.right++; T.coins += addCoins(2); addXp(3); if (!toRu) say(w.tr); }
+    if (ok) { sfx('ok'); T.right++; T.coins += addCoins(1); addXp(3); if (!toRu) say(w.tr); }
     else { sfx('bad'); say(w.tr); }
     foot(`<div class="feedback ${ok ? 'ok' : 'bad'}">${ok ? '✅ Верно!' : `❌ <small>${esc(w.tr)} — ${esc(w.ru)}</small>`}</div><button class="btn block" id="tNext">Дальше →</button>`, ok ? 'ok' : 'bad');
     $('#tNext').onclick = () => { T.idx++; renderTraining(); };
@@ -367,7 +367,7 @@ function renderTraining() {
   foot(`<p class="sub" style="text-align:center;margin:0">Выбери ответ</p>`);
 }
 function finishTraining() {
-  addXp(10); const bonus = addCoins(10); T.coins += bonus;
+  addXp(10); const bonus = addCoins(5); T.coins += bonus;
   $('#lessonProgress').style.width = '100%';
   const acc = Math.round(T.right / T.pool.length * 100);
   $('#lessonBody').innerHTML = `<div class="finish"><div class="big-em">🧠</div><h1>Отличная тренировка!</h1>
@@ -398,7 +398,7 @@ $('#streakPill').addEventListener('click', () => modal(`<h2>🔥 Серия: ${S
   <div class="modal-actions"><button class="btn block" onclick="closeModal()">Понятно</button></div>`));
 
 function lessonById(id) { return CORE_LESSONS.find((l) => l.id === id) || BONUS_LESSONS.find((l) => l.id === id) || PREMIUM_LESSONS.find((l) => l.id === id) || CLASSIFIEDS.sections.find((l) => l.id === id); }
-function premiumUnlocked(id) { return !!S.premium || S.unlockedPremium.includes(id); }
+function premiumUnlocked(id) { return S.owned.includes(id) || !!S.premium || S.unlockedPremium.includes(id); }
 function isUnlocked(i) { return i === 0 || !!S.completed[CORE_LESSONS[i - 1].id]; }
 function starsStr(n) { return '★'.repeat(n) + '☆'.repeat(3 - n); }
 
@@ -426,7 +426,7 @@ function renderMap() {
     const open = premiumUnlocked(l.id), done = S.completed[l.id];
     return `<div class="bonus ${open ? (done ? 'done' : '') : 'locked'}" data-prem="${l.id}" style="${open ? '' : 'border-color:#7C5CBF'}">
       <div class="em">${l.emoji}</div><div class="t">${esc(l.title)}</div><div class="s">${esc(l.subtitle)}</div>
-      ${open ? (progressLabel(l.id) ? `<div class="owned">▶ Продолжить ${progressLabel(l.id)}</div>` : done ? `<div style="color:var(--gold)">${starsStr(done.stars)}</div>` : '<div class="owned">Открыто ▶</div>') : `<div class="price" style="color:#4B2E83">💎 ${l.rub}₽ / промокод</div>`}
+      ${open ? (progressLabel(l.id) ? `<div class="owned">▶ Продолжить ${progressLabel(l.id)}</div>` : done ? `<div style="color:var(--gold)">${starsStr(done.stars)}</div>` : '<div class="owned">Открыто ▶</div>') : `<div class="price" style="color:#4B2E83">🔒 ${l.price} 🪙</div>`}
     </div>`;
   }).join('');
   const allDone = nextIdx === -1;
@@ -448,8 +448,8 @@ function renderMap() {
     <h2 class="section">📣 Большой разговорник</h2>
     <p class="sub">Язык объявлений: категории, жильё, авто, товары</p>
     ${classifiedsCard()}
-    <h2 class="section">💎 Премиум-уроки</h2>
-    <p class="sub">Открываются по промокоду</p>
+    <h2 class="section">💎 Продвинутые темы</h2>
+    <p class="sub">Открываются за монеты</p>
     <div class="bonus-grid">${premium}</div>`;
   const cb = $('#contBtn'); if (cb) cb.onclick = () => startLesson(CORE_LESSONS[nextIdx].id);
   const tb = $('#dailyTrain'); if (tb) tb.onclick = startTraining;
@@ -464,7 +464,7 @@ function renderMap() {
   });
   document.querySelectorAll('[data-prem]').forEach((b) => b.onclick = () => {
     const l = lessonById(b.dataset.prem);
-    if (premiumUnlocked(l.id)) lessonPreview(l); else premiumPreview(l);
+    if (premiumUnlocked(l.id)) lessonPreview(l); else buyDialog(l, 'pack');
   });
 }
 function premiumPreview(l) {
@@ -530,7 +530,7 @@ function renderShop() {
     const open = premiumUnlocked(l.id);
     return `<div class="card row"><div class="em">${l.emoji}</div>
       <div class="grow"><div class="t">${esc(l.title)} ${open ? '💎' : ''}</div><div class="s">${esc(l.subtitle)} · ${l.items.length} фраз</div></div>
-      ${open ? `<button class="btn turq small-btn" data-prem="${l.id}">Открыть ▶</button>` : `<button class="btn small-btn" data-promo="1" style="background:#4B2E83;box-shadow:0 4px 0 #2B1D55;color:#fff">🎟️ Код</button>`}</div>`;
+      ${open ? `<button class="btn turq small-btn" data-prem="${l.id}">Открыть ▶</button>` : `<button class="btn gold small-btn" data-buy="${l.id}" data-kind="pack">${l.price} 🪙</button>`}</div>`;
   };
   const boostRow = (b) => `<div class="card row"><div class="em">${b.emoji}</div>
       <div class="grow"><div class="t">${esc(b.title)}</div><div class="s">${esc(b.desc)}${b.id === 'freeze' ? ` · есть: ${S.freezes}` : (S.doubleNext ? ' · уже активен' : '')}</div></div>
@@ -538,11 +538,10 @@ function renderShop() {
   $('#screen').innerHTML = `
     <h2 class="section">Магазин знаний</h2>
     <p class="sub">У тебя ${S.coins} 🪙 — зарабатывай их на уроках и вкладывай в новые знания</p>
-    ${premiumCard()}
     <h2 class="section" style="font-size:18px">📣 Турция по объявлениям</h2>
     <p class="sub">Большой урок по категориям — бесплатно</p>${classifiedsCard()}
-    <h2 class="section" style="font-size:18px">💎 Премиум-уроки</h2>
-    <p class="sub">Открываются по промокоду</p>${PREMIUM_LESSONS.map(premRow).join('')}
+    <h2 class="section" style="font-size:18px">💎 Продвинутые темы</h2>
+    <p class="sub">Развивающие уроки за монеты</p>${PREMIUM_LESSONS.map(premRow).join('')}
     <h2 class="section" style="font-size:18px">📦 Бонусные уроки</h2>${BONUS_LESSONS.map(packRow).join('')}
     <h2 class="section" style="font-size:18px">📚 Грамматика и культура</h2>${KNOWLEDGE.map(cardRow).join('')}
     <h2 class="section" style="font-size:18px">⚡ Бустеры</h2>${BOOSTERS.map(boostRow).join('')}`;
@@ -651,7 +650,6 @@ function renderProfile() {
     ${inviteCard()}
     <div class="card row"><div class="grow"><div class="t">Звуки и вибрация</div></div><button class="btn ${S.sound ? 'turq' : 'ghost'} small-btn" id="sndBtn">${S.sound ? 'Вкл' : 'Выкл'}</button></div>
     <div class="card row"><div class="grow"><div class="t">Проверить микрофон</div><div class="s">Скажи «Merhaba»</div></div><button class="btn turq small-btn" id="micTest">🎙️ Тест</button></div>
-    <div class="card row"><div class="grow"><div class="t">💎 Ввести промокод</div><div class="s">${S.premium ? 'Премиум активен' : 'Открыть премиум-уроки'}</div></div><button class="btn small-btn" style="background:#4B2E83;box-shadow:0 4px 0 #2B1D55;color:#fff" onclick="promoDialog()">Ввести</button></div>
     <div class="card row"><div class="grow"><div class="t">Как установить на телефон</div></div><button class="btn ghost small-btn" id="howInstall">?</button></div>
     <div class="card row"><div class="grow"><div class="t" style="color:var(--wrong)">Сбросить прогресс</div></div><button class="btn red small-btn" id="resetBtn">Сброс</button></div>
     <p class="sub" style="text-align:center;margin-top:20px">Türkçe Quest v${APP_VERSION} · by goidin.ai</p>`;
@@ -909,7 +907,7 @@ function evalDialog(line, alts, attempts) {
   }
 }
 function finishDialogue() {
-  const bonus = 30; D.coins += addCoins(bonus); addXp(REWARD.xpLesson); D.xp += REWARD.xpLesson;
+  const bonus = 15; D.coins += addCoins(bonus); addXp(REWARD.xpLesson); D.xp += REWARD.xpLesson;
   if (!S.completedDialogs.includes(D.d.id)) S.completedDialogs.push(D.d.id);
   save(); renderTop();
   $('#lessonProgress').style.width = '100%';
@@ -1004,7 +1002,7 @@ function answerResult(task, right) {
   task.answered = true;
   if (right) {
     sfx('ok'); L.combo++; L.maxCombo = Math.max(L.maxCombo, L.combo);
-    const bonus = Math.min(L.combo - 1, 3);
+    const bonus = Math.min(L.combo - 1, 2);
     L.coins += addCoins(REWARD.answer + bonus, $('#lessonFoot')); L.xp += REWARD.xpTask; addXp(REWARD.xpTask);
     foot(`<div class="feedback ok">✅ Верно!${bonus ? ` Комбо +${bonus}🪙` : ''}</div>
       <button class="btn block" id="toSpeak">🎙️ Теперь произнеси</button>`, 'ok');
